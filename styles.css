@@ -1,0 +1,162 @@
+/* =========================
+   Design Tokens & Theme
+   ========================= */
+:root{
+  /* Dark defaults */
+  --bg: #0b1220;
+  --panel: #0f172a;
+  --panel-alt: #0b1426;
+  --panel-border:#1f2937;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+
+  --accent: #60a5fa;
+  --accent-strong:#2563eb;
+
+  --success:#22c55e;
+  --danger:#ef4444;
+  --warning:#f59e0b;
+
+  --chart-1:#60a5fa;
+  --chart-2:#34d399;
+  --chart-3:#fbbf24;
+  --chart-4:#f472b6;
+  --chart-5:#a78bfa;
+  --chart-grid:#1e293b;
+}
+
+body.light{
+  --bg:#ffffff;
+  --panel:#f8fafc;
+  --panel-alt:#eef2f7;
+  --panel-border:#e5e7eb;
+  --text:#0f172a;
+  --muted:#475569;
+
+  --accent:#2563eb;
+  --accent-strong:#1d4ed8;
+
+  --chart-grid:#e5e7eb;
+}
+
+/* =========================
+   Base
+   ========================= */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial,system-ui,sans-serif;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+.container{max-width:980px;margin:0 auto;padding:20px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.title{font-size:22px;font-weight:800;letter-spacing:.2px}
+
+/* =========================
+   Cards, Inputs, Buttons
+   ========================= */
+.card{
+  background:var(--panel);
+  border:1px solid var(--panel-border);
+  border-radius:16px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+}
+.card h2{margin:0 0 10px;font-size:18px;font-weight:800;letter-spacing:.2px}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.input, select{
+  width:100%;padding:12px 14px;border-radius:12px;
+  border:1px solid var(--panel-border);background:var(--panel-alt);
+  color:var(--text);outline:none;transition:border-color .2s, box-shadow .2s
+}
+.input:focus, select:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in oklab, var(--accent), transparent 80%)
+}
+
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid color-mix(in oklab, var(--accent-strong), #000 25%);
+  background:linear-gradient(180deg, var(--accent-strong), color-mix(in oklab, var(--accent-strong), #000 12%));
+  color:#fff;font-weight:700;cursor:pointer;
+  padding:10px 14px;border-radius:12px;transition:transform .05s ease, opacity .2s ease;
+}
+.btn:hover{opacity:.95}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--panel-border)}
+
+/* Grid */
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:740px){ .row{grid-template-columns:1fr} }
+
+/* =========================
+   KPIs / Chips
+   ========================= */
+.kpi{display:flex;gap:12px;flex-wrap:wrap}
+.chip{
+  background:var(--panel-alt);
+  border:1px solid var(--panel-border);
+  padding:12px 14px;border-radius:12px;min-width:180px
+}
+.sub{font-size:12px;color:var(--muted)}
+.val{font-weight:800;font-size:18px}
+.success{color:var(--success)} .danger{color:var(--danger)}
+
+/* =========================
+   Table
+   ========================= */
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px;border-bottom:1px solid var(--panel-border)}
+.table th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.35px}
+.right{text-align:right}
+
+/* =========================
+   Progress (Monatsverbrauch)
+   ========================= */
+.progress{
+  height:10px;background:color-mix(in oklab, var(--panel-alt), #000 8%);
+  border:1px solid var(--panel-border);border-radius:999px;overflow:hidden
+}
+.progress>span{
+  display:block;height:100%;
+  background:linear-gradient(90deg, var(--accent-strong), var(--accent));
+  width:0%;transition:width .45s ease;
+}
+
+/* =========================
+   Charts
+   ========================= */
+canvas{max-width:100%;display:block}
+
+/* =========================
+   OCR Pills / Flash-Input
+   ========================= */
+.amount-pill{
+  border:1px solid #2a3a5c;background:#13203a;
+  padding:8px 12px;border-radius:999px;cursor:pointer;color:#cfe3ff
+}
+.amount-pill.selected{
+  border-color:var(--accent);background:#0b254b;animation:blink .9s ease-in-out 1
+}
+@keyframes blink{
+  0%{box-shadow:0 0 0 rgba(96,165,250,0)}
+  40%{box-shadow:0 0 14px rgba(96,165,250,.45)}
+  100%{box-shadow:0 0 0 rgba(96,165,250,0)}
+}
+.input.flash{outline:2px solid var(--accent); box-shadow:0 0 10px color-mix(in oklab, var(--accent), transparent 55%)}
+
+/* =========================
+   Banner (neuer Monat)
+   ========================= */
+.banner{
+  background:#0b254b;border:1px solid #1e3a8a;
+  padding:12px;border-radius:12px;color:#c7d2fe;margin-bottom:16px
+}
+body.light .banner{background:#e0e7ff;border-color:#93c5fd;color:#1e3a8a}
