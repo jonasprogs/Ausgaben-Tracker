@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Finanz-Manager</title>
+  <title>Ausgaben-Tracker</title>
+
+  <!-- Deine bestehende Haupt-CSS -->
   <link rel="stylesheet" href="styles.css"/>
+
+  <!-- NEU: Sidebar / Wealth Styles -->
   <link rel="stylesheet" href="sidebar.css"/>
+
   <meta name="theme-color" content="#0f172a"/>
 </head>
 <body>
+  <!-- Sidebar (ein-/ausklappbar) -->
   <div class="sidebar" id="sidebar">
     <button class="close-btn" onclick="toggleSidebar()">×</button>
     <a href="#" onclick="showPage('ausgaben')">📄 Ausgaben-Tracker</a>
@@ -17,14 +23,19 @@
 
   <div class="container" id="main-content">
     <header class="header">
+      <!-- kleiner Menü-Button; stört deine Styles nicht -->
       <button class="menu-btn" onclick="toggleSidebar()">☰</button>
       <div class="title" id="page-title">🧾 Ausgaben-Tracker</div>
     </header>
+
+    <!-- Seite 1: Deine bestehende Ausgaben-App -->
     <div id="page-ausgaben">
       <div id="app"></div>
     </div>
+
+    <!-- Seite 2: Vermögen (wird per wealth.js gerendert) -->
     <div id="page-vermoegen" style="display:none;">
-      <div id="wealth-app"></div>
+      <div id="wealth-app" style="padding:20px;"></div>
     </div>
   </div>
 
@@ -40,22 +51,30 @@
   <!-- Tesseract (OCR) -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
 
-  <!-- Chart.js -->
+  <!-- Chart.js (WICHTIG für Vermögensseite) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- App Scripts -->
+  <!-- Deine bestehende App -->
   <script src="app.js"></script>
+
+  <!-- Vermögensmodul -->
   <script src="wealth.js"></script>
 
+  <!-- Mini-Router für die Sidebar -->
   <script>
     function toggleSidebar(){
       document.getElementById("sidebar").classList.toggle("open");
     }
     function showPage(page){
-      document.getElementById("page-ausgaben").style.display = page === 'ausgaben' ? 'block' : 'none';
-      document.getElementById("page-vermoegen").style.display = page === 'vermoegen' ? 'block' : 'none';
-      document.getElementById("page-title").textContent = page === 'ausgaben' ? '🧾 Ausgaben-Tracker' : '💰 Vermögen';
+      // Seiten umschalten
+      const isAusgaben = page === 'ausgaben';
+      document.getElementById("page-ausgaben").style.display = isAusgaben ? 'block' : 'none';
+      document.getElementById("page-vermoegen").style.display = isAusgaben ? 'none' : 'block';
+      document.getElementById("page-title").textContent = isAusgaben ? '🧾 Ausgaben-Tracker' : '💰 Vermögen';
+      // Sidebar schließen
       toggleSidebar();
+      // Optional: bei Wechsel zur Vermögensseite nach oben scrollen
+      if (!isAusgaben) window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   </script>
 </body>
