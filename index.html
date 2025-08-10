@@ -1,101 +1,62 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Meine App</title>
-
-  <!-- Deine bestehende Haupt-CSS -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finanz-Manager</title>
   <link rel="stylesheet" href="styles.css"/>
-
-  <!-- NEU: Sidebar-Styles -->
   <link rel="stylesheet" href="sidebar.css"/>
-
-  <!-- NEU: Chart.js für das Kuchendiagramm auf der Vermögensseite -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <meta name="theme-color" content="#0f172a"/>
 </head>
 <body>
+  <div class="sidebar" id="sidebar">
+    <button class="close-btn" onclick="toggleSidebar()">×</button>
+    <a href="#" onclick="showPage('ausgaben')">📄 Ausgaben-Tracker</a>
+    <a href="#" onclick="showPage('vermoegen')">💰 Vermögen</a>
+  </div>
 
-  <!-- Deine bestehende App-Oberfläche:
-       Lass alles darunter unverändert, wenn du bereits HTML-Inhalt hast.
-       Falls deine App nur per JS rendert, reicht dieser Container. -->
-  <div id="app"></div>
-
-  <!-- ===== Sidebar / Drawer (NEU) ===== -->
-  <!-- kleiner Toggle-Button (Position kannst du später anpassen) -->
-  <button id="openSidebar" title="Menü"
-          style="position:fixed;left:14px;bottom:14px;z-index:5000;border-radius:999px;padding:10px 12px;border:1px solid #162046;background:#0e1630;color:#eef2ff;cursor:pointer">
-    ≡
-  </button>
-
-  <!-- halbtransparenter Hintergrund -->
-  <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-
-  <!-- das eigentliche Sidebar-Panel -->
-  <aside class="drawer" id="drawer" hidden>
-    <div class="drawer-header">
-      <div class="brand-dot"></div>
-      <div class="brand-name">Menü</div>
-      <button id="closeDrawer" class="icon-btn" title="Schließen">✕</button>
+  <div class="container" id="main-content">
+    <header class="header">
+      <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+      <div class="title" id="page-title">🧾 Ausgaben-Tracker</div>
+    </header>
+    <div id="page-ausgaben">
+      <div id="app"></div>
     </div>
-
-    <nav class="drawer-nav">
-      <!-- Link 1: zurück zur bestehenden Ansicht -->
-      <button class="nav-btn" data-route="expenses">📒 Ausgaben</button>
-
-      <!-- Link 2: NEUE Vermögens-Seite -->
-      <button class="nav-btn" data-route="wealth">💰 Vermögen (monatlich)</button>
-    </nav>
-
-    <!-- Bereich für Seiten-Inhalte der Sidebar -->
-    <div class="drawer-content">
-      <div id="drawerPage"></div>
+    <div id="page-vermoegen" style="display:none;">
+      <div id="wealth-app"></div>
     </div>
-  </aside>
+  </div>
 
-  <!-- ===== JS ===== -->
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Deine bestehende Hauptlogik -->
+  <!-- Day.js + Plugins -->
+  <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
+  <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
+  <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
+
+  <!-- Tesseract (OCR) -->
+  <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- App Scripts -->
   <script src="app.js"></script>
-
-  <!-- NEU: Vermögensmodul -->
   <script src="wealth.js"></script>
 
-  <!-- NEU: kleines Init für Sidebar -->
   <script>
-    (function(){
-      const $ = s => document.querySelector(s);
-      const drawer = $('#drawer');
-      const backdrop = $('#drawerBackdrop');
-      const openBtn = $('#openSidebar');
-      const closeBtn = $('#closeDrawer');
-      const page = $('#drawerPage');
-
-      function open(){ drawer.hidden=false; backdrop.hidden=false; requestAnimationFrame(()=>drawer.classList.add('open')); }
-      function close(){ drawer.classList.remove('open'); backdrop.hidden=true; setTimeout(()=>{ drawer.hidden=true; page.innerHTML=''; }, 180); }
-
-      openBtn?.addEventListener('click', open);
-      closeBtn?.addEventListener('click', close);
-      backdrop?.addEventListener('click', close);
-
-      // Routen-Handling innerhalb der Sidebar
-      document.addEventListener('click', (e)=>{
-        const btn = e.target.closest('.nav-btn');
-        if (!btn) return;
-        const route = btn.dataset.route;
-        if (route === 'wealth') {
-          page.innerHTML = '';
-          if (window.WealthModule) {
-            window.WealthModule.render(page); // zeichnet UI + Pie-Chart
-          } else {
-            page.innerHTML = '<div style="padding:12px;color:#cbd5e1">Lade Vermögensmodul…</div>';
-          }
-        } else if (route === 'expenses') {
-          // Einfach schließen – deine bestehende Ansicht bleibt unverändert sichtbar
-          close();
-        }
-      });
-    })();
+    function toggleSidebar(){
+      document.getElementById("sidebar").classList.toggle("open");
+    }
+    function showPage(page){
+      document.getElementById("page-ausgaben").style.display = page === 'ausgaben' ? 'block' : 'none';
+      document.getElementById("page-vermoegen").style.display = page === 'vermoegen' ? 'block' : 'none';
+      document.getElementById("page-title").textContent = page === 'ausgaben' ? '🧾 Ausgaben-Tracker' : '💰 Vermögen';
+      toggleSidebar();
+    }
   </script>
 </body>
 </html>
