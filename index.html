@@ -28,7 +28,6 @@
         <button class="menu-btn" id="openSidebarBtn">☰</button>
         <span>🧾 Ausgaben-Tracker</span>
       </div>
-
       <!-- Theme Toggle -->
       <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
     </header>
@@ -53,8 +52,11 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Day.js (falls dein Ausgabentracker ihn nutzt) -->
+  <!-- Day.js -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
+  <!-- 🔧 WICHTIG: Plugins wieder dazu, sonst crasht app.js -->
+  <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
+  <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
 
   <!-- Tesseract (OCR) – gehört zu deinem Ausgabentracker -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
@@ -62,7 +64,7 @@
   <!-- Chart.js für den Trades-Chart -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- Deine bestehende App -->
+  <!-- Deine bestehende App (nutzt dayjs + plugins) -->
   <script src="app.js"></script>
 
   <!-- Wealth & Trades Module -->
@@ -111,9 +113,8 @@
         localStorage.setItem(THEME_KEY, next);
       });
 
-      // Start auf Ausgaben
+      // Start: Ausgaben anzeigen
       navigate("ausgaben");
-      // Expose navigate (optional, falls du verlinken willst)
       window.navigate = navigate;
     })();
   </script>
