@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ausgaben-Tracker</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <meta name="theme-color" content="#0f172a"/>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="title">🧾 Ausgaben-Tracker</div>
+    </header>
+    <div id="app"></div>
+  </div>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Day.js + Plugins -->
+  <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
+  <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
+  <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
+
+  <!-- Tesseract (OCR) -->
+  <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- App -->
+  <script src="app.js"></script>
+</body>
+</html>
