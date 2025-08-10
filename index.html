@@ -28,8 +28,15 @@
         <button class="menu-btn" id="openSidebarBtn">☰</button>
         <span>🧾 Ausgaben-Tracker</span>
       </div>
-      <!-- Theme Toggle -->
-      <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
+
+      <!-- Global Actions: Theme + Backup/Import -->
+      <div style="display:flex; gap:8px; align-items:center">
+        <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
+        <button id="backupBtn" class="menu-btn" title="Backup herunterladen">⤓ Backup</button>
+        <button id="importBtn" class="menu-btn" title="Backup importieren">⤒ Import</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none"/>
+        <span id="persistBadge" class="w-pill" style="display:none"></span>
+      </div>
     </header>
 
     <!-- Seite 1: Ausgaben -->
@@ -54,24 +61,26 @@
 
   <!-- Day.js -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
-  <!-- 🔧 WICHTIG: Plugins wieder dazu, sonst crasht app.js -->
   <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
 
-  <!-- Tesseract (OCR) – gehört zu deinem Ausgabentracker -->
+  <!-- OCR (gehört zu deiner Ausgabenseite) -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
 
-  <!-- Chart.js für den Trades-Chart -->
+  <!-- Chart.js (für Trades-Chart) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- Deine bestehende App (nutzt dayjs + plugins) -->
+  <!-- 🔐 Storage Tools (NEU) -->
+  <script src="storage-tools.js"></script>
+
+  <!-- Deine bestehende App (nutzt Day.js + Plugins) -->
   <script src="app.js"></script>
 
   <!-- Wealth & Trades Module -->
   <script src="wealth.js"></script>
   <script src="trades.js"></script>
 
-  <!-- Router + Theme -->
+  <!-- Router + Theme + Backup/Import-Wiring -->
   <script>
     (function(){
       const pages = ["ausgaben","vermoegen","trades"];
@@ -111,6 +120,38 @@
         const next = cur==="dark" ? "light" : "dark";
         root.setAttribute("data-theme", next);
         localStorage.setItem(THEME_KEY, next);
+      });
+
+      // 🔐 Storage: Migration + Persistenz + Buttons
+      StorageTools.migrateOnce(); // falls alte Keys existieren
+      StorageTools.requestPersistence().then(state=>{
+        const badge = document.getElementById("persistBadge");
+        if (!badge) return;
+        badge.style.display = "inline-flex";
+        badge.textContent = (state==="granted") ? "Speicher: dauerhaft" :
+                            (state==="prompt")  ? "Speicher: anfragbar" :
+                                                 "Speicher: nicht verfügbar";
+      });
+
+      // Backup/Import
+      const importInput = document.getElementById("importFile");
+      document.getElementById("backupBtn")?.addEventListener("click", ()=>StorageTools.downloadBackup());
+      document.getElementById("importBtn")?.addEventListener("click", ()=>importInput.click());
+      importInput?.addEventListener("change", async (e)=>{
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try{
+          const txt = await file.text();
+          const count = StorageTools.restoreFromBackup(txt);
+          alert("Import erfolgreich. " + count + " Datenbereiche wiederhergestellt.");
+          // Nach Import auf Ausgaben gehen (optional)
+          navigate("ausgaben");
+        }catch(err){
+          console.error(err);
+          alert("Import fehlgeschlagen: " + (err?.message || err));
+        }finally{
+          e.target.value = "";
+        }
       });
 
       // Start: Ausgaben anzeigen
