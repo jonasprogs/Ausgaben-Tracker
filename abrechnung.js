@@ -1,10 +1,10 @@
 // abrechnung.js – Monats-Abrechnung (React UMD, kein JSX)
-// Features:
-// - Mehrere Einnahmen (Liste)
-// - Fixkosten-Liste
-// - Automatische Übernahme "Gesamt ausgegeben" + "Lebensmittel" aus Ausgabentracker (localStorage)
-// - Live-Update: reagiert auf Änderungen am Ausgabentracker (Polling + storage-Event)
-// - Netto = Sum(Einnahmen) - Sum(Fixkosten) - GesamtAusgaben - Eingeplant
+// Neu:
+// - Sektionen einklappbar (Einnahmen, Fixkosten, Ausgaben/Auto-Werte), Zustand wird gespeichert
+// - Liest Ausgaben exakt aus deinem Tracker (STORAGE_KEY "budget-tracker-react-v11")
+//   Felder: expenses[{ amount, dateStr, category }], monthlyBudget, useOverride, overrideSpentToDate
+// - Optionaler Auto-Plan: Rest vom Lebensmittelbudget (geplant) wird in Netto einbezogen (umschaltbar)
+// - Live-Update: Polling + storage-Event (auch für monthlyBudget/Override)
 
 (function(){
   var h = React.createElement;
@@ -12,8 +12,7 @@
   var useEffect = React.useEffect;
   var useRef = React.useRef;
 
-  var STORAGE_KEY = "summary-data-v1"; // kompatibel zu vorher
-  // Ausgaben Storage-Key aus StorageTools, sonst Fallback:
+  var STORAGE_KEY = "summary-data-v1"; // Abrechnung speichert hier (kompatibel)
   var EXPENSES_KEY = (window.StorageTools && StorageTools.KEYS && StorageTools.KEYS.expenses) || "budget-tracker-react-v11";
 
   function nowYM(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
@@ -22,71 +21,45 @@
   function load(){ try{ var raw=localStorage.getItem(STORAGE_KEY); return raw?JSON.parse(raw):{}; }catch(e){ return {}; } }
   function save(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
 
-  // ---------- Ausgaben lesen (tolerant) ----------
-  function pickArrayLike(obj){
-    if (!obj || typeof obj!=="object") return [];
-    if (Array.isArray(obj)) return obj;
-    if (Array.isArray(obj.items)) return obj.items;
-    if (Array.isArray(obj.entries)) return obj.entries;
-    var best = [];
-    for (var k in obj){ if (Array.isArray(obj[k]) && obj[k].length>best.length) best = obj[k]; }
-    return best;
-  }
-  function parseDateish(v){
-    if (!v) return null;
-    if (typeof v==="string"){
-      if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
-      var t = Date.parse(v); if (!isNaN(t)) return new Date(t).toISOString().slice(0,10);
-    }
-    if (typeof v==="number"){ var d=new Date(v); if (!isNaN(d.getTime())) return d.toISOString().slice(0,10); }
-    return null;
-  }
-  function normalizeItem(it){
-    if (!it || typeof it!=="object") return null;
-    var keys = Object.keys(it);
-    var lkeys = keys.map(k=>k.toLowerCase());
-    function g(names){
-      for (var i=0;i<names.length;i++){
-        var id = names[i]; var idx = lkeys.indexOf(id);
-        if (idx>-1) return it[keys[idx]];
-      }
-      return undefined;
-    }
-    var date = parseDateish( g(["date","datum","createdat","timestamp","time","day"]) );
-    var amount = Number( g(["amount","betrag","value","price","sum","total","cost","eur","gesamt"]) );
-    if (!isFinite(amount)) return null;
-    var cat = g(["category","kategorie","cat","type","tag","gruppe","group"]);
-    if (typeof cat!=="string") cat = "";
-    return { date: date, amount: amount, category: cat };
-  }
-  function readExpensesForMonth(month){
+  // ---------- Ausgaben lesen (aus deinem Tracker) ----------
+  function readFromExpenseApp(month){
     var raw = localStorage.getItem(EXPENSES_KEY);
-    if (!raw) return { total:0, groceries:0, count:0, found:false, sig:"" };
-    var obj; try{ obj = JSON.parse(raw); }catch(e){ return { total:0, groceries:0, count:0, found:false, sig:"" }; }
-    var arr = pickArrayLike(obj);
-    if (!arr || !arr.length){ // sammle alle Arrays 1. Ebene
-      arr = [];
-      for (var k in obj){ if (Array.isArray(obj[k])) arr = arr.concat(obj[k]); }
+    if (!raw) return { found:false, total:0, groceries:0, monthBudget:0, useOverride:false, overrideAdd:0, sig:"" };
+
+    var st; try{ st = JSON.parse(raw); }catch(e){ return { found:false, total:0, groceries:0, monthBudget:0, useOverride:false, overrideAdd:0, sig:"" }; }
+    var monthKey = month; // "YYYY-MM"
+    var expenses = Array.isArray(st.expenses) ? st.expenses : [];
+    var total = 0, groceries = 0;
+
+    for (var i=0;i<expenses.length;i++){
+      var e = expenses[i];
+      var ds = (e && e.dateStr) ? String(e.dateStr) : null;
+      if (!ds) continue;
+      // Day.js ist global vorhanden (siehe index.html)
+      var ym = dayjs(ds, "YYYY-MM-DD", true).format("YYYY-MM");
+      if (ym !== monthKey) continue;
+
+      var amt = Number(e.amount||0);
+      total += amt;
+      var cat = (e.category || "Lebensmittel");
+      if (cat === "Lebensmittel") groceries += amt;
     }
-    var rows = [];
-    arr.forEach(function(it){ var n=normalizeItem(it); if(n && n.date && n.date.slice(0,7)===month) rows.push(n); });
-    var total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
-    var groceries = rows.reduce((a,b)=>{
-      var c = (b.category||"").toLowerCase();
-      var isGrocery = c.includes("lebens") || c.includes("grocery") || c.includes("essen") || c.includes("food");
-      return a + (isGrocery? Number(b.amount||0) : 0);
-    },0);
-    // Signatur für Change-Detection
-    var sig = String(rows.length)+"|"+total.toFixed(2)+"|"+groceries.toFixed(2);
-    return { total: total, groceries: groceries, count: rows.length, found:true, sig:sig };
+
+    var monthBudget = Number(st.monthlyBudget || 0);
+    var useOverride = !!st.useOverride;
+    var overrideAdd = useOverride && isFinite(Number(st.overrideSpentToDate)) ? Number(st.overrideSpentToDate) : 0;
+
+    // Signatur: ändert sich bei Beträgen, Anzahl, Budget oder Override
+    var sig = [expenses.length, total.toFixed(2), groceries.toFixed(2), monthBudget.toFixed(2), useOverride ? 1:0, Number(overrideAdd||0).toFixed(2)].join("|");
+
+    return { found:true, total: total, groceries: groceries, monthBudget: monthBudget, useOverride: useOverride, overrideAdd: overrideAdd, sig: sig };
   }
 
   function App(){
     var init = load();
     var initialYM = init.__lastYM || nowYM();
-    if(!init[initialYM]) init[initialYM] = { incomes:[], planned:0, fixed:[], overrides:{} };
 
-    // Migration: altes income-Feld in incomes umwandeln (einmalig)
+    // Migration (alt: single "income") -> incomes[]
     if (init[initialYM] && init[initialYM].income != null && (!Array.isArray(init[initialYM].incomes) || init[initialYM].incomes.length===0)){
       var old = Number(init[initialYM].income||0);
       init[initialYM].incomes = old ? [{id:uid(), name:"Einkommen", amount: old}] : [];
@@ -94,24 +67,26 @@
       save(init);
     }
 
-    var st = useState(init); var data = st[0], setData = st[1];
-    var ymst = useState(initialYM); var month = ymst[0], setMonth = ymst[1];
-    var tick = useState(0); var setTick = tick[1]; // für Live-Refresh
+    // Default-Struktur
+    if(!init[initialYM]) init[initialYM] = { incomes:[], planned:0, fixed:[], overrides:{}, useAutoPlan:true };
+    if(!init.__uiCollapsed) init.__uiCollapsed = { incomes:false, fixed:false, out:false };
 
-    // Live-Update: Polling alle 1.5s + storage-Event (für Änderungen in anderen Tabs)
+    var st = useState(init);        var data = st[0], setData = st[1];
+    var ymst = useState(initialYM); var month = ymst[0], setMonth = ymst[1];
+    var tick = useState(0);         var setTick = tick[1];
+
+    // Live-Update der Ausgaben/Budgets
     var lastSigRef = useRef("");
     useEffect(function(){
       function check(){
-        var auto = readExpensesForMonth(month);
+        var auto = readFromExpenseApp(month);
         if (auto.sig !== lastSigRef.current){
           lastSigRef.current = auto.sig;
-          setTick(function(t){ return (t+1)%100000; }); // re-render
+          setTick(function(t){ return (t+1)%100000; });
         }
       }
       var id = setInterval(check, 1500);
-      function onStorage(e){
-        if (e && e.key === EXPENSES_KEY) check();
-      }
+      function onStorage(e){ if (e && e.key === EXPENSES_KEY) check(); }
       window.addEventListener("storage", onStorage);
       check();
       return function(){ clearInterval(id); window.removeEventListener("storage", onStorage); };
@@ -120,38 +95,20 @@
     function monthData(){
       var cur = data[month];
       if (!cur){
-        cur = { incomes:[], planned:0, fixed:[], overrides:{} };
+        cur = { incomes:[], planned:0, fixed:[], overrides:{}, useAutoPlan:true };
         setData(function(prev){ var c=Object.assign({},prev); c[month]=cur; c.__lastYM=month; save(c); return c; });
       }
-      // Sicherheit: Felder
-      cur.incomes = Array.isArray(cur.incomes) ? cur.incomes : [];
-      cur.fixed   = Array.isArray(cur.fixed)   ? cur.fixed   : [];
+      // safety
+      cur.incomes   = Array.isArray(cur.incomes) ? cur.incomes : [];
+      cur.fixed     = Array.isArray(cur.fixed)   ? cur.fixed   : [];
       cur.overrides = cur.overrides || {};
+      if (typeof cur.useAutoPlan !== "boolean") cur.useAutoPlan = true;
       return cur;
     }
-
-    // State-Derivate
-    var cur = monthData();
-    var incomes = cur.incomes;
-    var planned = Number(cur.planned||0);
-    var fixed = cur.fixed;
-    var ovr = cur.overrides;
-
-    var incomeSum = incomes.reduce((a,b)=>a+Number(b.amount||0),0);
-    var fixedSum  = fixed.reduce((a,b)=>a+Number(b.amount||0),0);
-
-    var auto = readExpensesForMonth(month);
-    var totalSpent     = (ovr.totalSpent!=null)     ? Number(ovr.totalSpent)     : auto.total;
-    var groceriesSpent = (ovr.groceriesSpent!=null) ? Number(ovr.groceriesSpent) : auto.groceries;
-    var otherSpent = Math.max(0, Number(totalSpent) - Number(groceriesSpent));
-
-    var net = Number(incomeSum) - Number(fixedSum) - Number(totalSpent) - Number(planned);
-
-    // Helpers to mutate
     function setMonthPatch(patch){
       setData(function(prev){
         var copy = Object.assign({}, prev);
-        var base = copy[month] || { incomes:[], planned:0, fixed:[], overrides:{} };
+        var base = copy[month] || { incomes:[], planned:0, fixed:[], overrides:{}, useAutoPlan:true };
         copy[month] = Object.assign({}, base, patch);
         copy.__lastYM = month;
         save(copy);
@@ -161,53 +118,77 @@
     function ensureMonth(m){
       setData(function(prev){
         var copy = Object.assign({}, prev);
-        if(!copy[m]) copy[m] = { incomes:[], planned:0, fixed:[], overrides:{} };
+        if(!copy[m]) copy[m] = { incomes:[], planned:0, fixed:[], overrides:{}, useAutoPlan:true };
         copy.__lastYM = m;
         save(copy);
         return copy;
       });
     }
-
-    // Einnahmen
-    function addIncome(){
-      var arr = incomes.slice();
-      arr.push({ id:uid(), name:"", amount:0 });
-      setMonthPatch({ incomes: arr });
-    }
-    function updIncome(id, patch){
-      var arr = incomes.map(function(x){ return x.id===id ? Object.assign({},x,patch) : x; });
-      setMonthPatch({ incomes: arr });
-    }
-    function delIncome(id){
-      var arr = incomes.filter(function(x){ return x.id!==id; });
-      setMonthPatch({ incomes: arr });
+    function setCollapsed(section, value){
+      setData(function(prev){
+        var copy = Object.assign({}, prev);
+        var ui = Object.assign({ incomes:false, fixed:false, out:false }, copy.__uiCollapsed||{});
+        ui[section] = !!value;
+        copy.__uiCollapsed = ui;
+        save(copy);
+        return copy;
+      });
     }
 
-    // Fixkosten
-    function addFixed(){
-      var arr = fixed.slice();
-      arr.push({ id:uid(), name:"", amount:0 });
-      setMonthPatch({ fixed: arr });
-    }
-    function updFixed(id, patch){
-      var arr = fixed.map(function(x){ return x.id===id ? Object.assign({},x,patch) : x; });
-      setMonthPatch({ fixed: arr });
-    }
-    function delFixed(id){
-      var arr = fixed.filter(function(x){ return x.id!==id; });
-      setMonthPatch({ fixed: arr });
-    }
+    var cur = monthData();
+    var ui = Object.assign({ incomes:false, fixed:false, out:false }, data.__uiCollapsed||{});
+
+    // ---- Derivate ----
+    var incomes = cur.incomes;
+    var plannedManual = Number(cur.planned||0);
+    var fixed = cur.fixed;
+    var ovr = cur.overrides;
+
+    var incomeSum = incomes.reduce((a,b)=>a+Number(b.amount||0),0);
+    var fixedSum  = fixed.reduce((a,b)=>a+Number(b.amount||0),0);
+
+    // Ausgaben + Budget aus App
+    var auto = readFromExpenseApp(month);
+    // Lebensmittel inkl. Override (wie in deinem App-Code gerechnet)
+    var groceriesWithOverride = auto.groceries + (auto.overrideAdd || 0);
+    // Gesamt ausgegeben
+    var totalSpent = auto.total;
+
+    // Auto-Plan = Rest vom Lebensmittelbudget (nicht negativ)
+    var autoPlanRest = Math.max(0, Number(auto.monthBudget || 0) - Number(groceriesWithOverride || 0));
+
+    // Overrides aus Abrechnung (falls manuell überschrieben)
+    var totalSpentEff = (ovr.totalSpent!=null)     ? Number(ovr.totalSpent)     : totalSpent;
+    var groceriesEff  = (ovr.groceriesSpent!=null) ? Number(ovr.groceriesSpent) : groceriesWithOverride;
+    var autoPlanEff   = cur.useAutoPlan ? autoPlanRest : 0;
+
+    var otherSpent = Math.max(0, Number(totalSpentEff) - Number(groceriesEff));
+
+    // Netto
+    var net = Number(incomeSum) - Number(fixedSum) - Number(totalSpentEff) - Number(plannedManual) - Number(autoPlanEff);
+
+    // ---- Mutators ----
+    function addIncome(){ setMonthPatch({ incomes: incomes.concat([{id:uid(), name:"", amount:0}]) }); }
+    function updIncome(id, patch){ setMonthPatch({ incomes: incomes.map(x=>x.id===id? Object.assign({},x,patch):x) }); }
+    function delIncome(id){ setMonthPatch({ incomes: incomes.filter(x=>x.id!==id) }); }
+
+    function addFixed(){ setMonthPatch({ fixed: fixed.concat([{id:uid(), name:"", amount:0}]) }); }
+    function updFixed(id, patch){ setMonthPatch({ fixed: fixed.map(x=>x.id===id? Object.assign({},x,patch):x) }); }
+    function delFixed(id){ setMonthPatch({ fixed: fixed.filter(x=>x.id!==id) }); }
 
     function recalcFromExpenses(){
-      // überschreibt nur die Auto-Felder in overrides
       var base = data[month] || { incomes:[], planned:0, fixed:[], overrides:{} };
-      base.overrides = Object.assign({}, base.overrides, { totalSpent: auto.total, groceriesSpent: auto.groceries });
+      base.overrides = Object.assign({}, base.overrides, {
+        totalSpent: totalSpent,             // alle Kategorien
+        groceriesSpent: groceriesWithOverride // Lebensmittel + ggf. Override
+      });
       setMonthPatch(base);
-      alert("Werte neu aus Ausgaben übernommen.");
+      alert("Ausgaben neu übernommen.");
     }
 
-    // UI
+    // ---- UI ----
     return h("div",{className:"w-container"},
+
       // Kopf
       h("div",{className:"w-card"},
         h("div",{className:"w-row"},
@@ -218,119 +199,124 @@
           h("div",{className:"w-spacer"}),
           h("div",{className:"w-pill"},"Einnahmen: "+fmtEUR(incomeSum)),
           h("div",{className:"w-pill"},"Fixkosten: "+fmtEUR(fixedSum)),
-          h("div",{className:"w-pill"},"Ausgaben: "+fmtEUR(totalSpent))
+          h("div",{className:"w-pill"},"Ausgaben: "+fmtEUR(totalSpentEff))
         )
       ),
 
-      // Einnahmen & Planung
+      // Einnahmen (einklappbar)
       h("div",{className:"w-card"},
         h("div",{className:"w-row", style:{marginBottom:"8px"}},
-          h("h3",{style:{margin:0}},"Einnahmen & Planung"),
+          h("h3",{style:{margin:0}},"Einnahmen"),
           h("div",{className:"w-spacer"}),
-          h("button",{className:"w-button w-btn-primary", onClick:addIncome},"+ Einnahme")
+          h("button",{className:"w-button w-btn-ghost", onClick:function(){ setCollapsed("incomes", !ui.incomes); }}, ui.incomes? "Ausklappen":"Einklappen"),
+          h("button",{className:"w-button w-btn-primary", onClick:addIncome, style:{display: ui.incomes? "none":"inline-flex"}},"+ Einnahme")
         ),
-        h("div",{style:{overflowX:"auto"}},
-          h("table",{className:"w-table"},
-            h("thead",null,
-              h("tr",null,
-                h("th",null,"Name"),
-                h("th",{className:"w-num"},"Betrag (€)"),
-                h("th",null,"Aktion")
+        ui.incomes ? h("div",{className:"w-subtle"},"eingeklappt")
+        : h("div",{style:{overflowX:"auto"}},
+            h("table",{className:"w-table"},
+              h("thead",null, h("tr",null, h("th",null,"Name"), h("th",{className:"w-num"},"Betrag (€)"), h("th",null,"Aktion"))),
+              h("tbody",null,
+                incomes.map(function(row){
+                  return h("tr",{key:row.id},
+                    h("td",null, h("input",{className:"w-input", value:row.name||"", onChange:function(e){ updIncome(row.id,{name:e.target.value}); }})),
+                    h("td",{className:"w-num"}, h("input",{className:"w-input", type:"number", step:"0.01", value:row.amount||0, onChange:function(e){ updIncome(row.id,{amount:Number(e.target.value||0)}); }})),
+                    h("td",null, h("button",{className:"w-button w-btn-danger", onClick:function(){ delIncome(row.id); }},"Löschen"))
+                  );
+                })
               )
-            ),
-            h("tbody",null,
-              incomes.map(function(row){
-                return h("tr",{key:row.id},
-                  h("td",null, h("input",{className:"w-input", value:row.name||"", onChange:function(e){ updIncome(row.id,{name:e.target.value}); }})),
-                  h("td",{className:"w-num"}, h("input",{className:"w-input", type:"number", step:"0.01", value:row.amount||0, onChange:function(e){ updIncome(row.id,{amount:Number(e.target.value||0)}); }})),
-                  h("td",null, h("button",{className:"w-button w-btn-danger", onClick:function(){ delIncome(row.id); }},"Löschen"))
-                );
-              })
             )
           )
-        ),
-        h("div",{className:"w-grid-2", style:{marginTop:"10px"}},
-          h("div",null,
-            h("label",{className:"w-subtle"},"Eingeplante Ausgaben (Rest des Monats)"),
-            h("input",{className:"w-input", type:"number", step:"0.01", value:planned, onChange:function(e){ setMonthPatch({ planned:Number(e.target.value||0) }); }})
-          ),
-          h("div",null,
-            h("label",{className:"w-subtle"},"Hinweis"),
-            h("div",{className:"w-subtle"},"Einnahmen können mehrere Quellen enthalten (Gehalt, Nebenverdienst, Rückerstattung, …).")
-          )
-        )
       ),
 
-      // Fixkosten-Liste
+      // Fixkosten (einklappbar)
       h("div",{className:"w-card"},
         h("div",{className:"w-row", style:{marginBottom:"8px"}},
           h("h3",{style:{margin:0}},"Fixkosten"),
           h("div",{className:"w-spacer"}),
-          h("button",{className:"w-button w-btn-primary", onClick:addFixed},"+ Position")
+          h("button",{className:"w-button w-btn-ghost", onClick:function(){ setCollapsed("fixed", !ui.fixed); }}, ui.fixed? "Ausklappen":"Einklappen"),
+          h("button",{className:"w-button w-btn-primary", onClick:addFixed, style:{display: ui.fixed? "none":"inline-flex"}},"+ Position")
         ),
-        h("div",{style:{overflowX:"auto"}},
-          h("table",{className:"w-table"},
-            h("thead",null,
-              h("tr",null,
-                h("th",null,"Name"),
-                h("th",{className:"w-num"},"Betrag (€)"),
-                h("th",null,"Aktion")
+        ui.fixed ? h("div",{className:"w-subtle"},"eingeklappt")
+        : h("div",{style:{overflowX:"auto"}},
+            h("table",{className:"w-table"},
+              h("thead",null, h("tr",null, h("th",null,"Name"), h("th",{className:"w-num"},"Betrag (€)"), h("th",null,"Aktion"))),
+              h("tbody",null,
+                fixed.map(function(fx){
+                  return h("tr",{key:fx.id},
+                    h("td",null, h("input",{className:"w-input", value:fx.name||"", onChange:function(e){ updFixed(fx.id,{name:e.target.value}); }})),
+                    h("td",{className:"w-num"}, h("input",{className:"w-input", type:"number", step:"0.01", value:fx.amount||0, onChange:function(e){ updFixed(fx.id,{amount:Number(e.target.value||0)}); }})),
+                    h("td",null, h("button",{className:"w-button w-btn-danger", onClick:function(){ delFixed(fx.id); }},"Löschen"))
+                  );
+                })
               )
-            ),
-            h("tbody",null,
-              fixed.map(function(fx){
-                return h("tr",{key:fx.id},
-                  h("td",null, h("input",{className:"w-input", value:fx.name||"", onChange:function(e){ updFixed(fx.id,{name:e.target.value}); }})),
-                  h("td",{className:"w-num"}, h("input",{className:"w-input", type:"number", step:"0.01", value:fx.amount||0, onChange:function(e){ updFixed(fx.id,{amount:Number(e.target.value||0)}); }})),
-                  h("td",null, h("button",{className:"w-button w-btn-danger", onClick:function(){ delFixed(fx.id); }},"Löschen"))
-                );
-              })
             )
           )
-        )
       ),
 
-      // Ausgaben-Übernahme & Overrides
+      // Ausgaben & Auto-Werte (einklappbar)
       h("div",{className:"w-card"},
-        h("h3",null,"Ausgaben (auto – editierbar)"),
-        h("div",{className:"w-grid-2"},
-          h("div",null,
-            h("label",{className:"w-subtle"},"Gesamt ausgegeben (bisher, "+month+")"),
-            h("input",{className:"w-input", type:"number", step:"0.01",
-              value:(ovr.totalSpent!=null? ovr.totalSpent : auto.total),
-              onChange:function(e){
-                var v=Number(e.target.value||0);
-                var next = Object.assign({}, cur.overrides, { totalSpent:v });
-                setMonthPatch({ overrides: next });
-              }})
-          ),
-          h("div",null,
-            h("label",{className:"w-subtle"},"Lebensmittel (bisher)"),
-            h("input",{className:"w-input", type:"number", step:"0.01",
-              value:(ovr.groceriesSpent!=null? ovr.groceriesSpent : auto.groceries),
-              onChange:function(e){
-                var v=Number(e.target.value||0);
-                var next = Object.assign({}, cur.overrides, { groceriesSpent:v });
-                setMonthPatch({ overrides: next });
-              }})
-          )
-        ),
-        h("div",{className:"w-row", style:{marginTop:"10px"}},
-          h("button",{className:"w-button w-btn-ghost", onClick:recalcFromExpenses},"Neu aus Ausgaben berechnen"),
-          h("div",{className:"w-subtle"},"Quelle: localStorage[\""+EXPENSES_KEY+"\"] – erkannt: "+(auto.found? (auto.count+" Buchungen"):"keine Daten")),
+        h("div",{className:"w-row", style:{marginBottom:"8px"}},
+          h("h3",{style:{margin:0}},"Ausgaben & Auto-Werte"),
           h("div",{className:"w-spacer"}),
-          h("div",{className:"w-subtle"},"Live-Update aktiv ✓")
-        )
+          h("button",{className:"w-button w-btn-ghost", onClick:function(){ setCollapsed("out", !ui.out); }}, ui.out? "Ausklappen":"Einklappen")
+        ),
+        ui.out ? h("div",{className:"w-subtle"},"eingeklappt")
+        : h(React.Fragment, null,
+            // Auto erkannte Werte + Übernahme
+            h("div",{className:"w-grid-2"},
+              h("div",null,
+                h("label",{className:"w-subtle"},"Gesamt ausgegeben (auto, "+month+")"),
+                h("input",{className:"w-input", type:"number", step:"0.01", value:totalSpentEff,
+                  onChange:function(e){
+                    var v=Number(e.target.value||0);
+                    var next = Object.assign({}, cur.overrides, { totalSpent:v });
+                    setMonthPatch({ overrides: next });
+                  }})
+              ),
+              h("div",null,
+                h("label",{className:"w-subtle"},"Lebensmittel (inkl. Override)"),
+                h("input",{className:"w-input", type:"number", step:"0.01", value:groceriesEff,
+                  onChange:function(e){
+                    var v=Number(e.target.value||0);
+                    var next = Object.assign({}, cur.overrides, { groceriesSpent:v });
+                    setMonthPatch({ overrides: next });
+                  }})
+              )
+            ),
+            h("div",{className:"w-row", style:{marginTop:"8px"}},
+              h("button",{className:"w-button w-btn-ghost", onClick:recalcFromExpenses},"Neu aus Ausgaben übernehmen"),
+              h("div",{className:"w-subtle"},"Quelle: localStorage[\""+EXPENSES_KEY+"\"] – "+(auto.found? "Daten erkannt ✓" : "keine Daten"))
+            ),
+
+            // Geplantes
+            h("div",{className:"w-grid-2", style:{marginTop:"10px"}},
+              h("div",null,
+                h("label",{className:"w-subtle"},"Auto-Plan (Rest Lebensmittelbudget)"),
+                h("div",{className:"w-row"},
+                  h("div",{className:"w-pill"},"Auto-Plan: "+fmtEUR(autoPlanRest)),
+                  h("label", {className:"w-subtle", style:{display:"flex", alignItems:"center", gap:8}},
+                    h("input",{type:"checkbox", checked:!!cur.useAutoPlan, onChange:function(e){ setMonthPatch({ useAutoPlan: !!e.target.checked }); }}),
+                    "In Netto einbeziehen"
+                  )
+                )
+              ),
+              h("div",null,
+                h("label",{className:"w-subtle"},"Zusätzlich eingeplant (manuell, andere Kategorien)"),
+                h("input",{className:"w-input", type:"number", step:"0.01", value:plannedManual, onChange:function(e){ setMonthPatch({ planned:Number(e.target.value||0) }); }})
+              )
+            )
+          )
       ),
 
-      // Netto-Rechnung
+      // Netto-Ergebnis
       h("div",{className:"w-card"},
         h("h3",null,"Netto-Projektion"),
         h("div",{className:"w-kacheln"},
           h("div",{className:"w-kachel"}, h("strong",null,"Summe Einnahmen"),    h("small",null, fmtEUR(incomeSum))),
           h("div",{className:"w-kachel"}, h("strong",null,"Fixkosten"),          h("small",null, "− "+fmtEUR(fixedSum))),
-          h("div",{className:"w-kachel"}, h("strong",null,"Gesamt ausgegeben"),  h("small",null, "− "+fmtEUR(totalSpent))),
-          h("div",{className:"w-kachel"}, h("strong",null,"Eingeplant (Rest)"), h("small",null, "− "+fmtEUR(planned)))
+          h("div",{className:"w-kachel"}, h("strong",null,"Gesamt ausgegeben"),  h("small",null, "− "+fmtEUR(totalSpentEff))),
+          cur.useAutoPlan ? h("div",{className:"w-kachel"}, h("strong",null,"Auto-Plan (Lebensmittel)"), h("small",null, "− "+fmtEUR(autoPlanEff))) : null,
+          h("div",{className:"w-kachel"}, h("strong",null,"Zusätzlich eingeplant"), h("small",null, "− "+fmtEUR(plannedManual)))
         ),
         h("div",{className:"w-row", style:{marginTop:"10px"}},
           h("div",{className:"w-pill", style:{fontWeight:700}}, "≈ Netto am Monatsende: "+fmtEUR(net)),
@@ -341,7 +327,6 @@
     );
   }
 
-  // Mount
   document.addEventListener("DOMContentLoaded", function(){
     var mount = document.getElementById("summary-app");
     if(!mount) return;
