@@ -8,34 +8,39 @@
   <!-- Deine bestehende Haupt-CSS -->
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- NEU: Sidebar / Wealth Styles -->
+  <!-- Sidebar / Wealth / Trades Styles -->
   <link rel="stylesheet" href="sidebar.css"/>
 
   <meta name="theme-color" content="#0f172a"/>
 </head>
 <body>
-  <!-- Sidebar (ein-/ausklappbar) -->
+  <!-- Sidebar -->
   <div class="sidebar" id="sidebar">
     <button class="close-btn" onclick="toggleSidebar()">×</button>
     <a href="#" onclick="showPage('ausgaben')">📄 Ausgaben-Tracker</a>
     <a href="#" onclick="showPage('vermoegen')">💰 Vermögen</a>
+    <a href="#" onclick="showPage('trades')">📈 Trades</a>
   </div>
 
   <div class="container" id="main-content">
     <header class="header">
-      <!-- kleiner Menü-Button; stört deine Styles nicht -->
       <button class="menu-btn" onclick="toggleSidebar()">☰</button>
       <div class="title" id="page-title">🧾 Ausgaben-Tracker</div>
     </header>
 
-    <!-- Seite 1: Deine bestehende Ausgaben-App -->
+    <!-- Seite 1: Ausgaben -->
     <div id="page-ausgaben">
       <div id="app"></div>
     </div>
 
-    <!-- Seite 2: Vermögen (wird per wealth.js gerendert) -->
+    <!-- Seite 2: Vermögen -->
     <div id="page-vermoegen" style="display:none;">
-      <div id="wealth-app" style="padding:20px;"></div>
+      <div id="wealth-app" style="padding:16px;"></div>
+    </div>
+
+    <!-- Seite 3: Trades -->
+    <div id="page-trades" style="display:none;">
+      <div id="trades-app" style="padding:16px;"></div>
     </div>
   </div>
 
@@ -43,38 +48,37 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Day.js + Plugins -->
+  <!-- Day.js (falls dein Ausgabentracker ihn nutzt) -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
-  <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
-  <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
 
-  <!-- Tesseract (OCR) -->
+  <!-- Tesseract (OCR) – gehört zu deinem Ausgabentracker -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
 
-  <!-- Chart.js (WICHTIG für Vermögensseite) -->
+  <!-- Chart.js für den Trades-Chart -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
   <!-- Deine bestehende App -->
   <script src="app.js"></script>
 
-  <!-- Vermögensmodul -->
+  <!-- Wealth & Trades Module -->
   <script src="wealth.js"></script>
+  <script src="trades.js"></script>
 
-  <!-- Mini-Router für die Sidebar -->
+  <!-- Mini-Router -->
   <script>
     function toggleSidebar(){
       document.getElementById("sidebar").classList.toggle("open");
     }
     function showPage(page){
-      // Seiten umschalten
-      const isAusgaben = page === 'ausgaben';
-      document.getElementById("page-ausgaben").style.display = isAusgaben ? 'block' : 'none';
-      document.getElementById("page-vermoegen").style.display = isAusgaben ? 'none' : 'block';
-      document.getElementById("page-title").textContent = isAusgaben ? '🧾 Ausgaben-Tracker' : '💰 Vermögen';
-      // Sidebar schließen
+      const pages = ["ausgaben","vermoegen","trades"];
+      pages.forEach(p=>{
+        const el = document.getElementById("page-"+p);
+        if (el) el.style.display = (p===page) ? "block" : "none";
+      });
+      const title = page==="ausgaben" ? "🧾 Ausgaben-Tracker" : (page==="vermoegen" ? "💰 Vermögen" : "📈 Trades");
+      document.getElementById("page-title").textContent = title;
       toggleSidebar();
-      // Optional: bei Wechsel zur Vermögensseite nach oben scrollen
-      if (!isAusgaben) window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (page!=="ausgaben") window.scrollTo({top:0,behavior:"smooth"});
     }
   </script>
 </body>
