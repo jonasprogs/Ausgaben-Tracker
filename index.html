@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Ausgaben-Tracker</title>
 
   <!-- Deine bestehende Haupt-CSS -->
@@ -16,32 +16,37 @@
 <body>
   <!-- Sidebar -->
   <div class="sidebar" id="sidebar">
-    <button class="close-btn" onclick="toggleSidebar()">×</button>
-    <a href="#" onclick="showPage('ausgaben')">📄 Ausgaben-Tracker</a>
-    <a href="#" onclick="showPage('vermoegen')">💰 Vermögen</a>
-    <a href="#" onclick="showPage('trades')">📈 Trades</a>
+    <button class="close-btn" id="closeSidebarBtn">×</button>
+    <button class="nav-link" data-page="ausgaben">📄 Ausgaben-Tracker</button>
+    <button class="nav-link" data-page="vermoegen">💰 Vermögen</button>
+    <button class="nav-link" data-page="trades">📈 Trades</button>
   </div>
 
   <div class="container" id="main-content">
     <header class="header">
-      <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-      <div class="title" id="page-title">🧾 Ausgaben-Tracker</div>
+      <div class="title" id="page-title">
+        <button class="menu-btn" id="openSidebarBtn">☰</button>
+        <span>🧾 Ausgaben-Tracker</span>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
     </header>
 
     <!-- Seite 1: Ausgaben -->
-    <div id="page-ausgaben">
+    <section id="page-ausgaben" style="display:block">
       <div id="app"></div>
-    </div>
+    </section>
 
     <!-- Seite 2: Vermögen -->
-    <div id="page-vermoegen" style="display:none;">
+    <section id="page-vermoegen" style="display:none">
       <div id="wealth-app" style="padding:16px;"></div>
-    </div>
+    </section>
 
     <!-- Seite 3: Trades -->
-    <div id="page-trades" style="display:none;">
+    <section id="page-trades" style="display:none">
       <div id="trades-app" style="padding:16px;"></div>
-    </div>
+    </section>
   </div>
 
   <!-- React 18 -->
@@ -64,22 +69,53 @@
   <script src="wealth.js"></script>
   <script src="trades.js"></script>
 
-  <!-- Mini-Router -->
+  <!-- Router + Theme -->
   <script>
-    function toggleSidebar(){
-      document.getElementById("sidebar").classList.toggle("open");
-    }
-    function showPage(page){
+    (function(){
       const pages = ["ausgaben","vermoegen","trades"];
-      pages.forEach(p=>{
-        const el = document.getElementById("page-"+p);
-        if (el) el.style.display = (p===page) ? "block" : "none";
+      const $ = (s)=>document.querySelector(s);
+
+      function navigate(page){
+        pages.forEach(p=>{
+          const el = $("#page-"+p);
+          if (el) el.style.display = (p===page) ? "block" : "none";
+        });
+        $("#page-title").querySelector("span").textContent =
+          page==="ausgaben" ? "🧾 Ausgaben-Tracker" : (page==="vermoegen" ? "💰 Vermögen" : "📈 Trades");
+        closeSidebar();
+        if (page!=="ausgaben") window.scrollTo({top:0,behavior:"smooth"});
+      }
+
+      function openSidebar(){ $("#sidebar").classList.add("open"); }
+      function closeSidebar(){ $("#sidebar").classList.remove("open"); }
+
+      // Sidebar Buttons
+      document.addEventListener("click",(e)=>{
+        const btn = e.target.closest(".nav-link");
+        if (!btn) return;
+        const page = btn.dataset.page;
+        if (page) navigate(page);
       });
-      const title = page==="ausgaben" ? "🧾 Ausgaben-Tracker" : (page==="vermoegen" ? "💰 Vermögen" : "📈 Trades");
-      document.getElementById("page-title").textContent = title;
-      toggleSidebar();
-      if (page!=="ausgaben") window.scrollTo({top:0,behavior:"smooth"});
-    }
+      $("#openSidebarBtn")?.addEventListener("click", openSidebar);
+      $("#closeSidebarBtn")?.addEventListener("click", closeSidebar);
+
+      // Theme
+      const THEME_KEY = "app-theme";
+      const root = document.documentElement;
+      const stored = localStorage.getItem(THEME_KEY);
+      if (stored) root.setAttribute("data-theme", stored);
+      $("#themeToggle")?.addEventListener("click", ()=>{
+        const cur = root.getAttribute("data-theme") || "dark";
+        const next = cur==="dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        localStorage.setItem(THEME_KEY, next);
+      });
+
+      // Start auf Ausgaben
+      navigate("ausgaben");
+      // Expose navigate (optional, falls du verlinken willst)
+      window.navigate = navigate;
+    })();
   </script>
 </body>
 </html>
