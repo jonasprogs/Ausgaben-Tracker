@@ -8,7 +8,7 @@
   <!-- Deine bestehende Haupt-CSS -->
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- Sidebar / Wealth / Trades Styles -->
+  <!-- Sidebar / Wealth / Trades / Abrechnung Styles -->
   <link rel="stylesheet" href="sidebar.css"/>
 
   <meta name="theme-color" content="#0f172a"/>
@@ -20,6 +20,7 @@
     <button class="nav-link" data-page="ausgaben">📄 Ausgaben-Tracker</button>
     <button class="nav-link" data-page="vermoegen">💰 Vermögen</button>
     <button class="nav-link" data-page="trades">📈 Trades</button>
+    <button class="nav-link" data-page="abrechnung">🧮 Abrechnung</button>
   </div>
 
   <div class="container" id="main-content">
@@ -33,7 +34,7 @@
       <div style="display:flex; gap:8px; align-items:center">
         <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
         <button id="backupBtn" class="menu-btn" title="Backup herunterladen">⤓ Backup</button>
-        <button id="importBtn" class="menu-btn" title="Backup importieren">⤒ Import</button>
+        <button id="importBtn" className="menu-btn" title="Backup importieren">⤒ Import</button>
         <input id="importFile" type="file" accept="application/json" style="display:none"/>
         <span id="persistBadge" class="w-pill" style="display:none"></span>
       </div>
@@ -53,37 +54,43 @@
     <section id="page-trades" style="display:none">
       <div id="trades-app" style="padding:16px;"></div>
     </section>
+
+    <!-- Seite 4: Abrechnung -->
+    <section id="page-abrechnung" style="display:none">
+      <div id="summary-app" style="padding:16px;"></div>
+    </section>
   </div>
 
   <!-- React 18 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Day.js -->
+  <!-- Day.js (+ Plugins für deinen Ausgabentracker) -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
 
-  <!-- OCR (gehört zu deiner Ausgabenseite) -->
+  <!-- Tesseract (OCR) – gehört zu deiner Ausgabenseite -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
 
   <!-- Chart.js (für Trades-Chart) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- 🔐 Storage Tools (NEU) -->
+  <!-- 🔐 Storage Tools -->
   <script src="storage-tools.js"></script>
 
-  <!-- Deine bestehende App (nutzt Day.js + Plugins) -->
+  <!-- Deine bestehende App -->
   <script src="app.js"></script>
 
-  <!-- Wealth & Trades Module -->
+  <!-- Wealth & Trades & Abrechnung Module -->
   <script src="wealth.js"></script>
   <script src="trades.js"></script>
+  <script src="abrechnung.js"></script>
 
   <!-- Router + Theme + Backup/Import-Wiring -->
   <script>
     (function(){
-      const pages = ["ausgaben","vermoegen","trades"];
+      const pages = ["ausgaben","vermoegen","trades","abrechnung"];
       const $ = (s)=>document.querySelector(s);
 
       function navigate(page){
@@ -92,7 +99,10 @@
           if (el) el.style.display = (p===page) ? "block" : "none";
         });
         $("#page-title").querySelector("span").textContent =
-          page==="ausgaben" ? "🧾 Ausgaben-Tracker" : (page==="vermoegen" ? "💰 Vermögen" : "📈 Trades");
+          page==="ausgaben" ? "🧾 Ausgaben-Tracker" :
+          page==="vermoegen" ? "💰 Vermögen" :
+          page==="trades"    ? "📈 Trades" :
+                               "🧮 Abrechnung";
         closeSidebar();
         if (page!=="ausgaben") window.scrollTo({top:0,behavior:"smooth"});
       }
@@ -123,7 +133,7 @@
       });
 
       // 🔐 Storage: Migration + Persistenz + Buttons
-      StorageTools.migrateOnce(); // falls alte Keys existieren
+      StorageTools.migrateOnce();
       StorageTools.requestPersistence().then(state=>{
         const badge = document.getElementById("persistBadge");
         if (!badge) return;
@@ -144,7 +154,6 @@
           const txt = await file.text();
           const count = StorageTools.restoreFromBackup(txt);
           alert("Import erfolgreich. " + count + " Datenbereiche wiederhergestellt.");
-          // Nach Import auf Ausgaben gehen (optional)
           navigate("ausgaben");
         }catch(err){
           console.error(err);
@@ -154,7 +163,7 @@
         }
       });
 
-      // Start: Ausgaben anzeigen
+      // Start
       navigate("ausgaben");
       window.navigate = navigate;
     })();
