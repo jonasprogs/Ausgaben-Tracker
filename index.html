@@ -5,12 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Ausgaben-Tracker</title>
 
-  <!-- Deine bestehende Haupt-CSS -->
   <link rel="stylesheet" href="styles.css"/>
-
-  <!-- Sidebar / Wealth / Trades / Abrechnung Styles -->
   <link rel="stylesheet" href="sidebar.css"/>
-
   <meta name="theme-color" content="#0f172a"/>
 </head>
 <body>
@@ -30,13 +26,15 @@
         <span>🧾 Ausgaben-Tracker</span>
       </div>
 
-      <!-- Global Actions: Theme + Backup/Import -->
+      <!-- Global Actions -->
       <div style="display:flex; gap:8px; align-items:center">
         <button id="themeToggle" class="menu-btn" title="Theme umschalten">🌓</button>
         <button id="backupBtn" class="menu-btn" title="Backup herunterladen">⤓ Backup</button>
-        <button id="importBtn" className="menu-btn" title="Backup importieren">⤒ Import</button>
+        <button id="importBtn" class="menu-btn" title="Backup importieren">⤒ Import</button>
         <input id="importFile" type="file" accept="application/json" style="display:none"/>
         <span id="persistBadge" class="w-pill" style="display:none"></span>
+        <!-- 🔒 App-Sperre -->
+        <button id="lockBtn" class="menu-btn" title="Sperre / Sicherheit">🔒 Sperre</button>
       </div>
     </header>
 
@@ -61,33 +59,27 @@
     </section>
   </div>
 
-  <!-- React 18 -->
+  <!-- Libraries -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- Day.js (+ Plugins für deinen Ausgabentracker) -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/utc.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/timezone.js"></script>
-
-  <!-- Tesseract (OCR) – gehört zu deiner Ausgabenseite -->
   <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
-
-  <!-- Chart.js (für Trades-Chart) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- 🔐 Storage Tools -->
+  <!-- Tools -->
   <script src="storage-tools.js"></script>
+  <!-- 🔒 Security -->
+  <script src="security.js"></script>
 
-  <!-- Deine bestehende App -->
+  <!-- App-Module -->
   <script src="app.js"></script>
-
-  <!-- Wealth & Trades & Abrechnung Module -->
   <script src="wealth.js"></script>
   <script src="trades.js"></script>
   <script src="abrechnung.js"></script>
 
-  <!-- Router + Theme + Backup/Import-Wiring -->
+  <!-- Router + Theme + Backup/Import + Lock-Button -->
   <script>
     (function(){
       const pages = ["ausgaben","vermoegen","trades","abrechnung"];
@@ -109,13 +101,9 @@
 
       function openSidebar(){ $("#sidebar").classList.add("open"); }
       function closeSidebar(){ $("#sidebar").classList.remove("open"); }
-
-      // Sidebar Buttons
       document.addEventListener("click",(e)=>{
-        const btn = e.target.closest(".nav-link");
-        if (!btn) return;
-        const page = btn.dataset.page;
-        if (page) navigate(page);
+        const btn = e.target.closest(".nav-link"); if (!btn) return;
+        const page = btn.dataset.page; if (page) navigate(page);
       });
       $("#openSidebarBtn")?.addEventListener("click", openSidebar);
       $("#closeSidebarBtn")?.addEventListener("click", closeSidebar);
@@ -132,7 +120,7 @@
         localStorage.setItem(THEME_KEY, next);
       });
 
-      // 🔐 Storage: Migration + Persistenz + Buttons
+      // Persistenz
       StorageTools.migrateOnce();
       StorageTools.requestPersistence().then(state=>{
         const badge = document.getElementById("persistBadge");
@@ -153,14 +141,18 @@
         try{
           const txt = await file.text();
           const count = StorageTools.restoreFromBackup(txt);
-          alert("Import erfolgreich. " + count + " Datenbereiche wiederhergestellt.");
+          alert("Import erfolgreich. " + count + " Bereiche wiederhergestellt.");
           navigate("ausgaben");
         }catch(err){
-          console.error(err);
           alert("Import fehlgeschlagen: " + (err?.message || err));
         }finally{
           e.target.value = "";
         }
+      });
+
+      // 🔒 Lock Button
+      document.getElementById("lockBtn")?.addEventListener("click", ()=>{
+        if (window.AppLock) window.AppLock.openSettings();
       });
 
       // Start
