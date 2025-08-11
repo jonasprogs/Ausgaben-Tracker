@@ -1,112 +1,237 @@
-/* THEME: Dark & Light via [data-theme] */
+/* =========================================================
+   Minimal Mobile-First Theme (clean & modern)
+   – nur CSS, keine JS/HTML Änderungen nötig
+   ========================================================= */
+
+/* ---------- Design Tokens ---------- */
 :root{
-  --bg:#0b1225; --panel:#111a33; --line:#162046; --text:#eef2ff; --muted:#9aa3b2;
-  --accent:#4f7cff; --accent-border:#365bff; --danger:#ff5061;
-  --green:#34d399; --red:#f87171;
+  /* Colors (Dark) */
+  --bg: #0b1120;           /* Hintergrund */
+  --panel: #111827;        /* Karten/Paneele */
+  --panel-soft:#0f172a;    /* Inputs/Hilfsflächen */
+  --line:#1f2937;          /* zarte Linien */
+  --text:#e5e7eb;          /* Standardtext */
+  --muted:#9ca3af;         /* Sekundärtext */
+  --accent:#4f6ef7;        /* Primärfarbe */
+  --accent-strong:#3857f2;
+  --danger:#ef4444;
+  --green:#10b981;
+  --red:#ef4444;
+
+  /* Radii / Shadow / Motion */
+  --radius:12px;
+  --shadow: 0 6px 20px rgba(0,0,0,.18);
+  --ring: 0 0 0 2px color-mix(in oklab, var(--accent) 35%, transparent);
+  --trans: 160ms cubic-bezier(.2,.7,.2,1);
+
+  /* Sizing */
+  --pad: 16px;
+  --pad-sm: 12px;
+
+  /* Typography (system stack) */
+  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans";
 }
 :root[data-theme="light"]{
-  --bg:#f6f7fb; --panel:#ffffff; --line:#e5e7ef; --text:#0b1225; --muted:#4b5563;
-  --accent:#345cff; --accent-border:#2b50f2; --danger:#e5484d;
-  --green:#10b981; --red:#ef4444;
+  --bg:#f6f7fb;
+  --panel:#ffffff;
+  --panel-soft:#f2f4fa;
+  --line:#e7e9f0;
+  --text:#0b1120;
+  --muted:#6b7280;
+  --accent:#365df5;
+  --accent-strong:#2b50ef;
+  --danger:#e04848;
+  --green:#0ea773;
+  --red:#e23e3e;
+  --shadow: 0 8px 18px rgba(16,24,40,.10);
 }
 
-/* Base */
-html,body{ background:var(--bg); color:var(--text); }
-.header{ display:flex; justify-content:space-between; align-items:center; padding:10px 16px; }
-.header .title{ display:flex; align-items:center; gap:10px; font-weight:600; }
+/* ---------- Base ---------- */
+html, body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.header{
+  position: sticky; top: 0; z-index: 50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 10px var(--pad);
+  background: color-mix(in oklab, var(--bg) 80%, var(--panel) 20%);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+.header .title{ display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.2px; }
 
-/* Sidebar */
+/* ---------- Sidebar (Drawer) ---------- */
 .sidebar{
-  height:100%; width:0; position:fixed; inset:0 auto 0 0; z-index:1000;
-  background:linear-gradient(180deg, var(--bg), #0c142b);
-  border-right:1px solid var(--line);
-  overflow-x:hidden; transition:width .22s ease; padding-top:60px;
+  position: fixed; inset: 0 auto 0 0; z-index: 1000;
+  height: 100%; width: 0; overflow: hidden;
+  background: color-mix(in oklab, var(--bg) 88%, var(--panel) 12%);
+  border-right: 1px solid var(--line);
+  transition: width var(--trans);
+  padding-top: 56px;
+  box-shadow: 12px 0 32px rgba(0,0,0,.18);
 }
-.sidebar.open{ width:260px; max-width:88vw; }
+.sidebar.open{ width: 88vw; max-width: 300px; }
 .nav-link{
-  all:unset; display:block; width:100%;
-  color:var(--text); opacity:.92; font-size:16px; cursor:pointer;
-  padding:12px 16px; border-top:1px solid rgba(255,255,255,.06);
+  all: unset; display:block; width:100%; cursor:pointer;
+  color: var(--text); font-size: 16px; line-height: 1.3;
+  padding: 12px var(--pad);
+  border-top: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+  transition: background var(--trans);
 }
-.nav-link:hover{ background:rgba(255,255,255,.06); }
+.nav-link:hover{ background: color-mix(in oklab, var(--panel) 50%, transparent); }
 .close-btn{
-  position:absolute; top:12px; right:12px; font-size:22px;
-  background:transparent; color:var(--text); border:1px solid var(--line);
-  border-radius:10px; padding:4px 10px; cursor:pointer;
+  position:absolute; top:10px; right:10px;
+  background: transparent; color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 10px; cursor:pointer;
 }
 
-/* Buttons */
+/* ---------- Header Buttons ---------- */
 .menu-btn{
-  font-size:16px; background:var(--panel); color:var(--text);
-  border:1px solid var(--line); border-radius:10px; padding:6px 10px; cursor:pointer;
+  -webkit-appearance:none; appearance:none;
+  font-size: 14px; line-height: 1;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px; cursor: pointer;
+  transition: transform var(--trans), box-shadow var(--trans), background var(--trans);
 }
+.menu-btn:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
+.menu-btn:active{ transform: translateY(0); }
+.menu-btn:focus-visible{ outline: none; box-shadow: var(--ring); }
 
-/* Shared widgets for Wealth & Trades */
-#page-vermoegen, #page-trades{ padding:16px; }
-.w-container{ color:var(--text); }
-.w-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+/* ---------- Shared Sections ---------- */
+#page-vermoegen, #page-trades, #page-abrechnung{ padding: var(--pad); }
+.w-container{ color: var(--text); }
+
+/* Layout helpers */
+.w-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .w-spacer{ flex:1; }
-.w-subtle{ color:var(--muted); font-size:12px; }
+.w-subtle{ color: var(--muted); font-size: 12px; }
 
-.w-pill{
-  background:color-mix(in oklab, var(--panel) 70%, var(--bg) 30%);
-  border:1px solid var(--line);
-  color:var(--text); border-radius:999px; padding:6px 10px; font-size:12px;
-}
-
+/* Cards */
 .w-card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:14px; padding:14px; margin:12px 0;
-  box-shadow: 0 10px 28px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.04);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  margin: 12px 0;
+  box-shadow: var(--shadow);
 }
-.w-card h3{ margin:0 0 10px 0; font-size:16px; color:var(--text); }
+.w-card h3{ margin: 0 0 8px; font-size: 15px; font-weight: 600; }
 
-.w-grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-@media (max-width:900px){ .w-grid-2{ grid-template-columns:1fr; } }
+/* Pills / Badges */
+.w-pill{
+  display:inline-flex; align-items:center; gap:8px;
+  background: color-mix(in oklab, var(--panel) 85%, var(--bg) 15%);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
 
+/* Grid */
+.w-grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 880px){ .w-grid-2{ grid-template-columns: 1fr; } }
+
+/* Inputs / Selects / Buttons (44px touch) */
 .w-input, .w-select, .w-button{
   -webkit-appearance:none; appearance:none;
-  background:color-mix(in oklab, var(--panel) 85%, var(--bg) 15%);
-  color:var(--text);
-  border:1px solid var(--line); border-radius:10px;
-  padding:10px 12px; font-size:14px; outline:none; min-width:0;
+  min-height: 44px; /* mobile touch target */
+  background: var(--panel-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px; line-height: 1.2;
+  outline: none;
+  transition: box-shadow var(--trans), border-color var(--trans), background var(--trans);
 }
-.w-input::placeholder{ color:var(--muted); }
+.w-input::placeholder{ color: var(--muted); }
+.w-input:focus, .w-select:focus{ box-shadow: var(--ring); border-color: color-mix(in oklab, var(--accent) 50%, var(--line)); }
 .w-button{ cursor:pointer; }
-.w-btn-primary{ background:var(--accent); border-color:var(--accent-border); color:#fff; }
-.w-btn-ghost{ background:transparent; }
-.w-btn-danger{ background:color-mix(in oklab, var(--danger) 12%, transparent); border-color:var(--danger); color:var(--text); }
+.w-btn-primary{ background: var(--accent); border-color: var(--accent-strong); color: #fff; }
+.w-btn-primary:hover{ background: var(--accent-strong); }
+.w-btn-ghost{ background: transparent; }
+.w-btn-danger{ background: color-mix(in oklab, var(--danger) 12%, transparent); border-color: var(--danger); color: var(--text); }
+.w-btn-danger:hover{ background: color-mix(in oklab, var(--danger) 18%, transparent); }
 
-.w-table{ width:100%; border-collapse:collapse; color:var(--text); font-size:14px; }
-.w-table th, .w-table td{ border-bottom:1px solid var(--line); padding:10px 8px; }
-.w-table th{ text-align:left; }
-.w-table .w-input, .w-table .w-select{ width:100%; }
-.w-num{ text-align:right; }
-
-/* Verteilungs-Kacheln (Wealth) */
-.w-kacheln{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-@media (max-width:680px){ .w-kacheln{ grid-template-columns:1fr; } }
-.w-kachel{
-  background:color-mix(in oklab, var(--panel) 85%, var(--bg) 15%);
-  border:1px solid var(--line); border-radius:12px;
-  padding:10px 12px; display:flex; justify-content:space-between; align-items:center;
+/* Tables – clean & lesbar */
+.w-table{ width:100%; border-collapse: separate; border-spacing:0; font-size: 14px; color: var(--text); }
+.w-table thead th{
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px; text-align: left; font-weight: 600;
 }
-.w-kachel small{ color:var(--muted); }
+.w-table tbody td{
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px;
+}
+.w-table tr:hover td{ background: color-mix(in oklab, var(--panel) 92%, var(--bg) 8%); }
+.w-table .w-input, .w-table .w-select{ width: 100%; min-height: 40px; font-size: 14px; }
+.w-num{ text-align: right; }
 
-/* Trades specific */
-.t-badge{ border-radius:999px; padding:3px 8px; font-size:12px; border:1px solid transparent; }
-.t-badge.gain{ background:color-mix(in oklab, var(--green) 16%, transparent); border-color:color-mix(in oklab, var(--green) 50%, transparent); color:var(--text); }
-.t-badge.loss{ background:color-mix(in oklab, var(--red) 16%, transparent); border-color:color-mix(in oklab, var(--red) 55%, transparent); color:var(--text); }
+/* Wealth tiles */
+.w-kacheln{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px){ .w-kacheln{ grid-template-columns: 1fr; } }
+.w-kachel{
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.w-kachel small{ color: var(--muted); }
+
+/* Trades badges */
+.t-badge{ border-radius: 999px; padding: 4px 10px; font-size: 12px; border: 1px solid transparent; }
+.t-badge.gain{ background: color-mix(in oklab, var(--green) 16%, transparent); border-color: color-mix(in oklab, var(--green) 50%, transparent); }
+.t-badge.loss{ background: color-mix(in oklab, var(--red) 16%, transparent);   border-color: color-mix(in oklab, var(--red) 55%, transparent); }
 .t-legend{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .dot{ width:10px; height:10px; border-radius:50%; }
-.dot.green{ background:var(--green); }
-.dot.red{ background:var(--red); }
+.dot.green{ background: var(--green); }
+.dot.red{ background: var(--red); }
+
+/* Chart heights (mobile angenehm) */
+.t-chart{ height: 220px !important; }
+@media (max-width: 520px){ .t-chart{ height: 180px !important; } }
 
 /* Mobile finetuning */
-@media (max-width:520px){
-  .w-table{ font-size:13px; }
-  .w-card{ padding:12px; }
-  .menu-btn{ padding:6px 10px; }
-  .t-chart{ height: 180px !important; }
+@media (max-width: 520px){
+  .header{ padding: 8px 12px; }
+  .menu-btn{ padding: 8px 10px; font-size: 13.5px; }
+  .w-card{ padding: 14px; margin: 10px 0; }
+  .w-table{ font-size: 13.5px; }
 }
+
+/* Scrollbar (subtil) */
+*{ scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--line) 70%, transparent) transparent; }
+*::-webkit-scrollbar{ height:10px; width:10px; }
+*::-webkit-scrollbar-thumb{ background: color-mix(in oklab, var(--line) 80%, transparent); border-radius: 999px; }
+*::-webkit-scrollbar-track{ background: transparent; }
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce){
+  .menu-btn, .nav-link, .w-input, .w-select, .w-button{ transition: none; }
+}
+
+/* ---------- 🔒 App-Lock – dezenter Look ---------- */
+.lock-overlay{ backdrop-filter: blur(8px) saturate(1.02); }
+.lock-overlay .lock-card{
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.lock-overlay .lock-input, .lock-overlay .lock-btn{
+  border-radius: 10px;
+}
+.lock-overlay .lock-input:focus{ box-shadow: var(--ring); outline: none; }
+.lock-overlay .lock-btn.primary{ background: var(--accent); border-color: var(--accent-strong); color:#fff; }
