@@ -1,18 +1,13 @@
-// trades.js – Monats-Trades mit KUMULATIVEM P&L-Chart
+// trades.js – Monats-Trades mit KUMULATIVEM P&L-Chart (ohne dayjs-Pflicht)
 (function () {
   const { useState, useEffect, useMemo, useRef } = React;
   const e = React.createElement;
 
-  // dayjs-Plugins nur aktivieren, wenn vorhanden (verhindert Runtime-Fehler)
-  if (window.dayjs_plugin_utc) dayjs.extend(window.dayjs_plugin_utc);
-  if (window.dayjs_plugin_timezone) dayjs.extend(window.dayjs_plugin_timezone);
-
-  // -------- Storage: vorhandenen Key smart finden, sonst Default --------
+  // ---------- Storage: vorhandenen Key finden, sonst Default ----------
   const DEFAULT_KEY = "trades-data-v1";
   const KNOWN_KEYS = ["trades-data-v1", "trades-tracker-v1", "trades-tracker-react-v1"];
-
   function findExistingTradesKey() {
-    // 1) bekannte Keys prüfen
+    // 1) bekannte Keys checken
     for (const k of KNOWN_KEYS) {
       try {
         const raw = localStorage.getItem(k);
@@ -45,87 +40,99 @@
       return { trades: [] };
     }
   }
-  function save(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+  function save(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-  function uid() { return Math.random().toString(36).slice(2, 9); }
-  function fmt(n) { return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n || 0)); }
-  function cssVar(name, fallback) {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
+  // ---------- Utils (ohne dayjs) ----------
+  function todayISO() { return new Date().toISOString().slice(0, 10); }     // YYYY-MM-DD
+  function nowMonthKey() { return new Date().toISOString().slice(0, 7); }   // YYYY-MM
+  function toYM(dateStr) { return (dateStr || "").slice(0, 7); }            // YYYY-MM*
+  function daysInMonth(ym) {
+    const [y, m] = ym.split("-").map(Number); // m = 1..12
+    if (!y || !m) return 31;
+    return new Date(y, m, 0).getDate();       // Trick: Tag 0 = letzter Tag des Vormonats
+  }
+  function isValidDate(str) { return /^\d{4}-\d{2}-\d{2}$/.test(str); }
+  function fmtEUR(n) { return new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(Number(n||0)); }
+
+  // ---------- Mount sicherstellen ----------
+  function ensureMount() {
+    let mount = document.getElementById("trades-app");
+    if (!mount) {
+      const host = document.getElementById("page-trades") || document.body;
+      mount = document.createElement("div");
+      mount.id = "trades-app";
+      host.appendChild(mount);
+    }
+    return mount;
   }
 
   function App() {
-    const today = (window.dayjs_plugin_timezone ? dayjs().tz("Europe/Berlin") : dayjs());
     const [state, setState] = useState(() => load());
     useEffect(() => save(state), [state]);
 
-    const [month, setMonth] = useState(today.format("YYYY-MM"));
-    const monthDays = dayjs(month + "-01").daysInMonth();
+    const [month, setMonth] = useState(nowMonthKey());
+    const monthDays = daysInMonth(month);
 
-    // -------- Eingabe --------
-    const [name, setName] = useState("");
-    const [dateStr, setDateStr] = useState(today.format("YYYY-MM-DD"));
-    const [amount, setAmount] = useState(""); // P&L (+ Gewinn / – Verlust)
+    // Eingabe
+    const [name, setName]   = useState("");
+    const [dateStr, setDateStr] = useState(todayISO());
+    const [amount, setAmount] = useState(""); // Gewinn (+) / Verlust (–)
 
     function addTrade() {
       const val = Number(String(amount).replace(",", "."));
       if (!isFinite(val)) return;
-      const ds = dayjs(dateStr, "YYYY-MM-DD", true).isValid() ? dateStr : today.format("YYYY-MM-DD");
+      const ds = isValidDate(dateStr) ? dateStr : todayISO();
       setState(s => ({
         ...s,
-        trades: [{ id: uid(), name: (name || "Trade").trim(), dateStr: ds, pnl: val }, ...s.trades]
+        trades: [{ id: Math.random().toString(36).slice(2,9), name: (name||"Trade").trim(), dateStr: ds, pnl: val }, ...s.trades]
       }));
-      setName(""); setAmount(""); setDateStr(today.format("YYYY-MM-DD"));
+      setName(""); setAmount(""); setDateStr(todayISO());
     }
     function delTrade(id) { setState(s => ({ ...s, trades: s.trades.filter(t => t.id !== id) })); }
     function updateTrade(id, patch) { setState(s => ({ ...s, trades: s.trades.map(t => t.id === id ? { ...t, ...patch } : t) })); }
 
-    // -------- Filter & Aggregation --------
-    const tradesMonth = useMemo(() => {
+    // Filter Monat
+    const tradesMonthAsc = useMemo(() => {
       return state.trades
-        .filter(t => dayjs(t.dateStr, "YYYY-MM-DD").format("YYYY-MM") === month)
-        .sort((a,b) => dayjs(a.dateStr, "YYYY-MM-DD").valueOf() - dayjs(b.dateStr, "YYYY-MM-DD").valueOf());
+        .filter(t => toYM(t.dateStr) === month)
+        .sort((a,b) => a.dateStr.localeCompare(b.dateStr)); // aufsteigend für Serie
     }, [state.trades, month]);
 
-    // Per-Tag-Summe UND kumulativ (kumulative Linie ist gewünscht)
+    // Serie: pro Tag + kumulativ
     const series = useMemo(() => {
       const perDay = Array(monthDays).fill(0);
-      for (const t of tradesMonth) {
-        const d = dayjs(t.dateStr, "YYYY-MM-DD", true);
-        if (!d.isValid()) continue;
-        const idx = d.date() - 1; // 0-basiert
-        perDay[idx] += Number(t.pnl || 0);
+      for (const t of tradesMonthAsc) {
+        if (!isValidDate(t.dateStr)) continue;
+        const idx = parseInt(t.dateStr.slice(8,10), 10) - 1; // 0-basiert
+        if (idx>=0 && idx<monthDays) perDay[idx] += Number(t.pnl || 0);
       }
       const cum = [];
       let acc = 0;
-      for (let i = 0; i < monthDays; i++) { acc += perDay[i]; cum.push(acc); }
+      for (let i=0;i<monthDays;i++){ acc += perDay[i]; cum.push(acc); }
       return { perDay, cum };
-    }, [tradesMonth, monthDays]);
+    }, [tradesMonthAsc, monthDays]);
 
-    // -------- Chart --------
+    // Chart
     const ref = useRef(null), chartRef = useRef(null);
     useEffect(() => {
       if (!ref.current) return;
       if (!window.Chart) {
-        // Falls Chart.js nicht geladen ist, nichts crashen – zeig einfach keinen Chart.
+        // Chart.js fehlt → sanfte Degradation
         ref.current.replaceWith(Object.assign(document.createElement("div"), {
-          textContent: "Chart.js nicht geladen – Diagramm wird nicht angezeigt.",
+          textContent: "Diagramm nicht verfügbar (Chart.js nicht geladen).",
           style: "color:#9ca3af;padding:8px 0;"
         }));
         return;
       }
       chartRef.current?.destroy();
-      const axisColor = cssVar("--chart-grid", "#e5e7eb");
-      const textColor = cssVar("--text", "#111827");
+      const axisColor = getComputedStyle(document.documentElement).getPropertyValue("--chart-grid").trim() || "#e5e7eb";
+      const textColor = getComputedStyle(document.body).getPropertyValue("--text").trim() || "#111827";
       chartRef.current = new Chart(ref.current, {
         type: "line",
         data: {
           labels: Array.from({ length: monthDays }, (_, i) => String(i + 1)),
           datasets: [
-            // Nur die kumulative Linie (wie gewünscht)
             { label: "Kumulativ", data: series.cum, tension: 0.25, borderWidth: 2, pointRadius: 0 }
-            // Wenn du zusätzlich die Tagessumme sehen willst, füge hinzu:
-            // { label: "Tagessumme", data: series.perDay, tension: 0.25, borderWidth: 1, pointRadius: 0 }
           ]
         },
         options: {
@@ -139,14 +146,17 @@
       return () => chartRef.current?.destroy();
     }, [series, monthDays]);
 
-    // -------- UI --------
+    // Tabelle: neueste zuerst
+    const tradesMonthDesc = useMemo(() => tradesMonthAsc.slice().sort((a,b)=> b.dateStr.localeCompare(a.dateStr)), [tradesMonthAsc]);
+
+    // UI
     return e("div", { className:"w-container" },
 
       e("div", { className:"w-card" },
         e("div", { className:"w-row" },
           e("div", null,
             e("label", { className:"w-subtle" }, "Monat"),
-            e("input", { type:"month", className:"w-input", value:month, onChange:ev=>setMonth(ev.target.value) })
+            e("input", { type:"month", className:"w-input", value: month, onChange: ev => setMonth(ev.target.value) })
           ),
           e("div", { className:"w-spacer" })
         )
@@ -178,39 +188,36 @@
               e("th", null, "Aktion")
             )),
             e("tbody", null,
-              tradesMonth
-                .slice()
-                .sort((a,b)=> dayjs(b.dateStr).valueOf() - dayjs(a.dateStr).valueOf()) // Tabelle: neueste zuerst
-                .map(t => e("tr", { key:t.id },
-                  e("td", null,
-                    e("input", {
-                      className:"w-input",
-                      type:"date",
-                      value:t.dateStr,
-                      onChange:ev=>updateTrade(t.id,{ dateStr: ev.target.value })
-                    })
-                  ),
-                  e("td", null,
-                    e("input", {
-                      className:"w-input",
-                      value:t.name||"",
-                      onChange:ev=>updateTrade(t.id,{ name: ev.target.value })
-                    })
-                  ),
-                  e("td", { className:"w-num" },
-                    e("input", {
-                      className:"w-input",
-                      type:"number",
-                      step:"0.01",
-                      value: t.pnl,
-                      style:{ color: Number(t.pnl)>=0 ? "var(--green, #16a34a)" : "var(--red, #dc2626)" },
-                      onChange:ev=>updateTrade(t.id,{ pnl: Number(ev.target.value||0) })
-                    })
-                  ),
-                  e("td", null,
-                    e("button", { className:"w-button w-btn-danger", onClick:()=>delTrade(t.id) }, "Löschen")
-                  )
-                ))
+              tradesMonthDesc.map(t => e("tr", { key:t.id },
+                e("td", null,
+                  e("input", {
+                    className:"w-input",
+                    type:"date",
+                    value:t.dateStr,
+                    onChange:ev=>updateTrade(t.id,{ dateStr: ev.target.value })
+                  })
+                ),
+                e("td", null,
+                  e("input", {
+                    className:"w-input",
+                    value:t.name||"",
+                    onChange:ev=>updateTrade(t.id,{ name: ev.target.value })
+                  })
+                ),
+                e("td", { className:"w-num" },
+                  e("input", {
+                    className:"w-input",
+                    type:"number",
+                    step:"0.01",
+                    value: t.pnl,
+                    style:{ color: Number(t.pnl)>=0 ? "var(--green, #16a34a)" : "var(--red, #dc2626)" },
+                    onChange:ev=>updateTrade(t.id,{ pnl: Number(ev.target.value||0) })
+                  })
+                ),
+                e("td", null,
+                  e("button", { className:"w-button w-btn-danger", onClick:()=>delTrade(t.id) }, "Löschen")
+                )
+              ))
             )
           )
         )
@@ -218,14 +225,12 @@
     );
   }
 
-  // Mount
+  // ---------- Mount & Render ----------
   document.addEventListener("DOMContentLoaded", function(){
-    const mount = document.getElementById("trades-app");
-    if (!mount) return;
-    if (ReactDOM.createRoot) {
-      ReactDOM.createRoot(mount).render(React.createElement(App));
-    } else {
-      ReactDOM.render(React.createElement(App), mount);
-    }
+    if (window.__tradesMounted) return; // Doppel-Mount verhindern
+    const mount = ensureMount();
+    window.__tradesMounted = true;
+    if (ReactDOM.createRoot) ReactDOM.createRoot(mount).render(e(App));
+    else ReactDOM.render(e(App), mount);
   });
 })();
