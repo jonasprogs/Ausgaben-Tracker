@@ -48,7 +48,6 @@
     const data = labels.map(l => sums[l] || 0);
     return { labels, data };
   }
-  // Plan vs. Ist (Lebensmittel) — Ist = Override + Lebensmittel-Ausgaben pro Tag
   function buildCumulativeSeries(monthDays, budget, today, monthExpenses, overrideAdd) {
     const daily = (Number(budget) || 0) / monthDays;
     const plan = Array.from({ length: monthDays }, (_, i) => daily * (i + 1));
@@ -60,7 +59,7 @@
       if (d.isValid() && d.isSame(today, "month") && d.isSame(today, "year")) byDay[d.date() - 1] += Number(e.amount || 0);
     }
     const ist = [];
-    let acc = Number(overrideAdd || 0); // Override als Startwert
+    let acc = Number(overrideAdd || 0);
     for (let i = 0; i < monthDays; i++) { acc += byDay[i]; ist.push(acc); }
     return { plan, ist };
   }
@@ -101,13 +100,11 @@
       .reduce((a, b) => a + Number(b.amount || 0), 0),
     [monthExpenses]);
 
-    // Override additiv
     const overrideRaw = String(state.overrideSpentToDate ?? "").trim();
     const spentToDateFood = (state.useOverride && isFinite(Number(overrideRaw)))
       ? foodSum + Number(overrideRaw || 0)
       : foodSum;
 
-    // Kennzahlen
     const plannedCumulative = ((Number(state.monthlyBudget) || 0) / monthDays) * dayOfMonth;
     const todayAvailable = plannedCumulative - spentToDateFood;
 
@@ -140,14 +137,6 @@
     function deleteExpense(id) { setState(s => ({ ...s, expenses: s.expenses.filter(x => x.id !== id) })); }
     function newMonth() { if (confirm("Alle Ausgaben löschen (neuer Monat)?")) setState(s => ({ ...s, expenses: [], overrideSpentToDate: "", lastSeenMonthKey: monthKey })); }
     function resetAll() { if (confirm("Alles auf Standard zurücksetzen?")) setState({ monthlyBudget: 350, useOverride: false, overrideSpentToDate: "", expenses: [], lastSeenMonthKey: monthKey }); }
-    
-    // ---- Kategorie eines bestehenden Eintrags updaten ----
-function updateExpense(id, patch) {
-  setState(s => ({
-    ...s,
-    expenses: s.expenses.map(x => x.id === id ? { ...x, ...patch } : x)
-  }));
-}
 
     // ---------- OCR ----------
     const [file, setFile] = useState(null);
@@ -205,7 +194,6 @@ function updateExpense(id, patch) {
     const gridColor = cssVar("--chart-grid");
     const textColor = getComputedStyle(document.body).getPropertyValue("--text").trim();
 
-    // Donut (je Kategorie, aktueller Monat)
     useEffect(() => {
       if (!donutRef.current) return;
       const { labels, data } = buildCategorySums(monthExpenses);
@@ -219,7 +207,6 @@ function updateExpense(id, patch) {
       return () => donutChart.current?.destroy();
     }, [monthExpenses, state.monthlyBudget, state.useOverride, state.overrideSpentToDate]);
 
-    // Linie (Plan vs. Kumuliert mit Override als Startwert)
     useEffect(() => {
       if (!lineRef.current) return;
       const { plan, ist } = buildCumulativeSeries(
@@ -362,84 +349,59 @@ function updateExpense(id, patch) {
       ocrStatus === "error" ? e("div", { style: { marginTop: 8, color: "#fca5a5" } }, "OCR fehlgeschlagen. Versuch es mit einem klareren Screenshot.") : null
     );
 
-const CATEGORIES = (state && Array.isArray(state.categories) && state.categories.length)
-  ? state.categories
-  : ["Lebensmittel","Restaurant","Mobilität","Kleidung","Wohnen","Fix","Other"];
-
+    // --------- Tabelle (Name editierbar, Kategorie Dropdown) ---------
     const table = e("div", { className: "card" },
-  e("h2", null, "Ausgaben (dieser Monat)"),
-  monthExpenses.length === 0
-    ? e("p", null, "Noch keine Ausgaben.")
-    : e("table", { className: "table" },
-        // Kopf
-        e("thead", null, e("tr", null,
-          e("th", null, "Datum"),
-          e("th", null, "Name"),
-          e("th", null, "Kategorie"),
-          e("th", { className: "right" }, "Betrag"),
-          e("th", null, "")
-        )),
-        // Body
-        e("tbody", null,
-          monthExpenses
-            .slice()
-            .sort((a, b) =>
-              dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
+      e("h2", null, "Ausgaben (dieser Monat)"),
+      monthExpenses.length === 0
+        ? e("p", null, "Noch keine Ausgaben.")
+        : e("table", { className: "table" },
+            e("thead", null, e("tr", null,
+              e("th", null, "Datum"),
+              e("th", null, "Name"),
+              e("th", null, "Kategorie"),
+              e("th", { className: "right" }, "Betrag"),
+              e("th", null, "")
+            )),
+            e("tbody", null,
+              monthExpenses
+                .slice()
+                .sort((a, b) =>
+                  dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
+                )
+                .map(exp => e("tr", { key: exp.id },
+                  e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
+                  e("td", null,
+                    e("input", {
+                      className: "input table-text",
+                      type: "text",
+                      placeholder: "Name / Händler",
+                      value: exp.name || "",
+                      onChange: ev => setState(s => ({
+                        ...s,
+                        expenses: s.expenses.map(x =>
+                          x.id === exp.id ? { ...x, name: ev.target.value } : x
+                        )
+                      }))
+                    })
+                  ),
+                  e("td", null,
+                    e("select", {
+                      className: "input table-select",
+                      value: exp.category || "Lebensmittel",
+                      onChange: ev => setState(s => ({
+                        ...s,
+                        expenses: s.expenses.map(x =>
+                          x.id === exp.id ? { ...x, category: ev.target.value } : x
+                        )
+                      }))
+                    }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
+                  ),
+                  e("td", { className: "right" }, currency(Number(exp.amount))),
+                  e("td", null,
+                    e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
+                  )
+                ))
             )
-            .map(exp => e("tr", { key: exp.id },
-
-              // Datum
-              e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
-
-              // Name – direkt editierbar (kein updateExpense nötig)
-              e("td", null,
-                e("input", {
-                  className: "input table-text",
-                  type: "text",
-                  placeholder: "Name / Händler",
-                  value: exp.name || "",
-                  onChange: ev => setState(s => ({
-                    ...s,
-                    expenses: s.expenses.map(x =>
-                      x.id === exp.id ? { ...x, name: ev.target.value } : x
-                    )
-                  }))
-                })
-              ),
-
-              // Kategorie – Dropdown
-              e("td", null,
-                e("select", {
-                  className: "input table-select",
-                  value: exp.category || "Lebensmittel",
-                  onChange: ev => setState(s => ({
-                    ...s,
-                    expenses: s.expenses.map(x =>
-                      x.id === exp.id ? { ...x, category: ev.target.value } : x
-                    )
-                  }))
-                }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
-              ),
-
-              // Betrag (nur Anzeige)
-              e("td", { className: "right" }, currency(Number(exp.amount))),
-
-              // Löschen
-              e("td", null,
-                e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
-              )
-            ))
-        )
-      )
-);
-// <<< tbody END
-
-      e("td", { className: "right" }, currency(Number(exp.amount))),
-      e("td", null,
-        e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
-      )
-    ))
-)
           )
     );
 
