@@ -374,17 +374,31 @@ function updateExpense(id, patch) {
               e("th", { className: "right" }, "Betrag"),
               e("th", null, "")
             )),
-            e("tbody", null,
+            
+// >>> tbody START – Ausgaben (dieser Monat)
+e("tbody", null,
   monthExpenses
     .slice()
     .sort((a, b) =>
       dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
     )
     .map(exp => e("tr", { key: exp.id },
-      e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
-      e("td", null, exp.name),
 
-      // ⬇️ Kategorie jetzt als Dropdown (ändert sofort localStorage)
+      // Datum
+      e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
+
+      // Name – jetzt editierbar
+      e("td", null,
+        e("input", {
+          className: "input table-text",
+          type: "text",
+          placeholder: "Name / Händler",
+          value: exp.name || "",
+          onChange: ev => updateExpense(exp.id, { name: ev.target.value })
+        })
+      ),
+
+      // Kategorie – Dropdown
       e("td", null,
         e("select", {
           className: "input table-select",
@@ -392,6 +406,17 @@ function updateExpense(id, patch) {
           onChange: ev => updateExpense(exp.id, { category: ev.target.value })
         }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
       ),
+
+      // Betrag (nur Anzeige)
+      e("td", { className: "right" }, currency(Number(exp.amount))),
+
+      // Löschen
+      e("td", null,
+        e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
+      )
+    ))
+)
+// <<< tbody END
 
       e("td", { className: "right" }, currency(Number(exp.amount))),
       e("td", null,
