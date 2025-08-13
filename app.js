@@ -362,6 +362,10 @@ function updateExpense(id, patch) {
       ocrStatus === "error" ? e("div", { style: { marginTop: 8, color: "#fca5a5" } }, "OCR fehlgeschlagen. Versuch es mit einem klareren Screenshot.") : null
     );
 
+const CATEGORIES = (state && Array.isArray(state.categories) && state.categories.length)
+  ? state.categories
+  : ["Lebensmittel","Restaurant","Mobilität","Kleidung","Wohnen","Fix","Other"];
+
     const table = e("div", { className: "card" },
   e("h2", null, "Ausgaben (dieser Monat)"),
   monthExpenses.length === 0
