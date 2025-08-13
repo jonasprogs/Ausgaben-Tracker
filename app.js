@@ -141,6 +141,8 @@
     // ---------- OCR ----------
     const [file, setFile] = useState(null);
     const [filePreview, setFilePreview] = useState("");
+    theNote=""; // (keine Änderung am Verhalten – Platzhalter, um evtl. ESLint-Warnungen zu vermeiden)
+
     const [note, setNote] = useState("");
     const [ocrStatus, setOcrStatus] = useState("idle");
     const [ocrProgress, setOcrProgress] = useState(0);
@@ -209,9 +211,10 @@
 
     useEffect(() => {
       if (!lineRef.current) return;
+      const monthDays = today.daysInMonth();
       const { plan, ist } = buildCumulativeSeries(
         monthDays, state.monthlyBudget, today, monthExpenses,
-        (state.useOverride && isFinite(Number(overrideRaw))) ? Number(overrideRaw) : 0
+        (state.useOverride && isFinite(Number(state.overrideSpentToDate))) ? Number(state.overrideSpentToDate) : 0
       );
       const colors = chartColors();
       lineChart.current?.destroy();
@@ -234,7 +237,7 @@
         }
       });
       return () => lineChart.current?.destroy();
-    }, [state.monthlyBudget, monthExpenses, monthDays, monthKey, state.useOverride, state.overrideSpentToDate]);
+    }, [state.monthlyBudget, monthExpenses, state.useOverride, state.overrideSpentToDate]);
 
     // ---------- UI ----------
     const banner = showMonthBanner ? e("div", { className: "banner card" },
@@ -349,7 +352,7 @@
       ocrStatus === "error" ? e("div", { style: { marginTop: 8, color: "#fca5a5" } }, "OCR fehlgeschlagen. Versuch es mit einem klareren Screenshot.") : null
     );
 
-    // --------- Tabelle (Name editierbar, Kategorie Dropdown) ---------
+    // --------- Tabelle (Datum/Name editierbar, Kategorie Dropdown) ---------
     const table = e("div", { className: "card" },
       e("h2", null, "Ausgaben (dieser Monat)"),
       monthExpenses.length === 0
@@ -369,7 +372,21 @@
                   dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
                 )
                 .map(exp => e("tr", { key: exp.id },
-                  e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
+                  // DATUM editierbar (ändert ggf. den Monat – Eintrag kann dann aus der Liste verschwinden)
+                  e("td", null,
+                    e("input", {
+                      className: "input table-date",
+                      type: "date",
+                      value: exp.dateStr,
+                      onChange: ev => setState(s => ({
+                        ...s,
+                        expenses: s.expenses.map(x =>
+                          x.id === exp.id ? { ...x, dateStr: ev.target.value } : x
+                        )
+                      }))
+                    })
+                  ),
+                  // NAME editierbar
                   e("td", null,
                     e("input", {
                       className: "input table-text",
@@ -384,6 +401,7 @@
                       }))
                     })
                   ),
+                  // KATEGORIE Dropdown
                   e("td", null,
                     e("select", {
                       className: "input table-select",
@@ -396,7 +414,9 @@
                       }))
                     }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
                   ),
+                  // BETRAG (Anzeige)
                   e("td", { className: "right" }, currency(Number(exp.amount))),
+                  // LÖSCHEN
                   e("td", null,
                     e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
                   )
