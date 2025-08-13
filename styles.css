@@ -160,3 +160,14 @@ canvas{max-width:100%;display:block}
   padding:12px;border-radius:12px;color:#c7d2fe;margin-bottom:16px
 }
 body.light .banner{background:#e0e7ff;border-color:#93c5fd;color:#1e3a8a}
+
+/* Kompakter Select in der Ausgaben-Tabelle */
+.table .table-select{
+  padding: 6px 10px;
+  min-height: 34px;
+  font-size: 14px;
+  width: 100%;
+}
+@media (max-width: 600px){
+  .table .table-select{ min-width: 120px; }
+}
