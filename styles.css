@@ -183,3 +183,15 @@ body.light .banner{background:#e0e7ff;border-color:#93c5fd;color:#1e3a8a}
   .table .table-text,
   .table .table-select{ min-width: 140px; }
 }
+
+.table .table-text,
+.table .table-select{
+  padding: 6px 10px;
+  min-height: 34px;
+  font-size: 14px;
+  width: 100%;
+}
+@media (max-width: 600px){
+  .table .table-text,
+  .table .table-select{ min-width: 140px; }
+}
