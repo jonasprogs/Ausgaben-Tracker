@@ -363,59 +363,60 @@ function updateExpense(id, patch) {
     );
 
     const table = e("div", { className: "card" },
-      e("h2", null, "Ausgaben (dieser Monat)"),
-      monthExpenses.length === 0
-        ? e("p", null, "Noch keine Ausgaben.")
-        : e("table", { className: "table" },
-            e("thead", null, e("tr", null,
-              e("th", null, "Datum"),
-              e("th", null, "Name"),
-              e("th", null, "Kategorie"),
-              e("th", { className: "right" }, "Betrag"),
-              e("th", null, "")
-            )),
-            
-// >>> tbody START – Ausgaben (dieser Monat)
-e("tbody", null,
-  monthExpenses
-    .slice()
-    .sort((a, b) =>
-      dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
-    )
-    .map(exp => e("tr", { key: exp.id },
+  e("h2", null, "Ausgaben (dieser Monat)"),
+  monthExpenses.length === 0
+    ? e("p", null, "Noch keine Ausgaben.")
+    : e("table", { className: "table" },
+        // Kopf
+        e("thead", null, e("tr", null,
+          e("th", null, "Datum"),
+          e("th", null, "Name"),
+          e("th", null, "Kategorie"),
+          e("th", { className: "right" }, "Betrag"),
+          e("th", null, "")
+        )),
+        // Body
+        e("tbody", null,
+          monthExpenses
+            .slice()
+            .sort((a, b) =>
+              dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
+            )
+            .map(exp => e("tr", { key: exp.id },
+              // Datum
+              e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
 
-      // Datum
-      e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
+              // Name – editierbar
+              e("td", null,
+                e("input", {
+                  className: "input table-text",
+                  type: "text",
+                  placeholder: "Name / Händler",
+                  value: exp.name || "",
+                  onChange: ev => updateExpense(exp.id, { name: ev.target.value })
+                })
+              ),
 
-      // Name – jetzt editierbar
-      e("td", null,
-        e("input", {
-          className: "input table-text",
-          type: "text",
-          placeholder: "Name / Händler",
-          value: exp.name || "",
-          onChange: ev => updateExpense(exp.id, { name: ev.target.value })
-        })
-      ),
+              // Kategorie – Dropdown
+              e("td", null,
+                e("select", {
+                  className: "input table-select",
+                  value: exp.category || "Lebensmittel",
+                  onChange: ev => updateExpense(exp.id, { category: ev.target.value })
+                }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
+              ),
 
-      // Kategorie – Dropdown
-      e("td", null,
-        e("select", {
-          className: "input table-select",
-          value: exp.category || "Lebensmittel",
-          onChange: ev => updateExpense(exp.id, { category: ev.target.value })
-        }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
-      ),
+              // Betrag (nur Anzeige)
+              e("td", { className: "right" }, currency(Number(exp.amount))),
 
-      // Betrag (nur Anzeige)
-      e("td", { className: "right" }, currency(Number(exp.amount))),
-
-      // Löschen
-      e("td", null,
-        e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
+              // Löschen
+              e("td", null,
+                e("button", { className: "btn ghost", onClick: () => deleteExpense(exp.id) }, "Löschen")
+              )
+            ))
+        )
       )
-    ))
-)
+);
 // <<< tbody END
 
       e("td", { className: "right" }, currency(Number(exp.amount))),
