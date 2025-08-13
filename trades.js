@@ -1,199 +1,153 @@
-// trades.js – React UMD, kein JSX. Monatsbasierte Trades + Linienchart (pro Tag Nettop&l)
-(function(){
-  var h = React.createElement;
-  var useState = React.useState;
-  var useEffect = React.useEffect;
+// trades.js – Monats-Trades mit kumulativem P&L-Chart
+(function () {
+  const { useState, useEffect, useMemo, useRef } = React;
+  const e = React.createElement;
+  dayjs.extend(window.dayjs_plugin_utc);
+  dayjs.extend(window.dayjs_plugin_timezone);
 
-  var STORAGE_KEY = "trades-data-v1"; // { [YYYY-MM]: {items:[{id,name,date,amount}]} , __lastYM }
-  var GREEN = "#34d399", RED = "#f87171";
+  // Storage: versuche bekannte Keys zu lesen, schreibe in den ersten vorhandenen – sonst default
+  const FALLBACK_KEY = "trades-data-v1";
+  const POSSIBLE_KEYS = ["trades-data-v1", "trades-tracker-v1", "trades-tracker-react-v1"];
+  function pickKey() {
+    for (const k of POSSIBLE_KEYS) { if (localStorage.getItem(k)) return k; }
+    return FALLBACK_KEY;
+  }
+  const STORAGE_KEY = pickKey();
 
-  function nowYM(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
-  function todayStr(){ return new Date().toISOString().slice(0,10); }
-  function uid(){ return Math.random().toString(36).slice(2,9); }
-  function fmtEUR(n){ return new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(Number(n||0)); }
-  function load(){ try{ var raw=localStorage.getItem(STORAGE_KEY); return raw?JSON.parse(raw):{}; }catch(e){ return {}; } }
-  function save(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+  function load() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : { trades: [] }; } catch { return { trades: [] }; } }
+  function save(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function fmt(n) { return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n || 0)); }
 
-  function App(){
-    var init = load();
-    var initialYM = init.__lastYM || nowYM();
-    if(!init[initialYM]) init[initialYM] = { items:[] };
+  function App() {
+    const today = dayjs().tz("Europe/Berlin");
+    const [state, setState] = useState(() => load());
+    useEffect(() => save(state), [state]);
 
-    var st = useState(init); var data = st[0], setData = st[1];
-    var ymst = useState(initialYM); var month = ymst[0], setMonth = ymst[1];
+    const [month, setMonth] = useState(today.format("YYYY-MM"));
+    const monthDays = dayjs(month + "-01").daysInMonth();
 
-    // Eingaben
-    var nst = useState(""); var name = nst[0], setName = nst[1];
-    var dst = useState(todayStr()); var date = dst[0], setDate = dst[1];
-    var typ = useState("gain"); var type = typ[0], setType = typ[1]; // gain | loss
-    var vst = useState(""); var value = vst[0], setValue = vst[1];
+    // Eingabe
+    const [name, setName] = useState("");
+    const [dateStr, setDateStr] = useState(today.format("YYYY-MM-DD"));
+    const [amount, setAmount] = useState(""); // Gewinn (positiv) / Verlust (negativ)
 
-    useEffect(function(){ save(Object.assign({}, data, {__lastYM: month})); }, [data,month]);
-
-    function items(){ return (data[month] && data[month].items) ? data[month].items : []; }
-    function setItems(arr){
-      setData(function(prev){ var copy=Object.assign({},prev); copy[month]={items:arr}; return copy; });
+    function addTrade() {
+      const val = Number(String(amount).replace(",", "."));
+      if (!isFinite(val)) return;
+      const dOk = dayjs(dateStr, "YYYY-MM-DD", true).isValid() ? dateStr : today.format("YYYY-MM-DD");
+      setState(s => ({ ...s, trades: [{ id: uid(), name: name.trim() || "Trade", dateStr: dOk, pnl: val }, ...s.trades] }));
+      setName(""); setAmount(""); setDateStr(today.format("YYYY-MM-DD"));
     }
-    function ensureMonth(m){
-      setData(function(prev){ var copy=Object.assign({},prev); if(!copy[m]) copy[m]={items:[]}; return copy; });
-    }
+    function delTrade(id) { setState(s => ({ ...s, trades: s.trades.filter(t => t.id !== id) })); }
+    function updateTrade(id, patch) { setState(s => ({ ...s, trades: s.trades.map(t => t.id === id ? { ...t, ...patch } : t) })); }
 
-    function addTrade(){
-      var val = Number(value);
-      if(!name || !date || !isFinite(val)) return;
-      var sign = (type==="gain") ? 1 : -1;
-      var amt = sign * Math.abs(val);
-      var ym = date.slice(0,7);
-      if (ym !== month){ setMonth(ym); ensureMonth(ym); }
-      var arr = (data[ym] && data[ym].items) ? data[ym].items.slice() : [];
-      arr.push({ id:uid(), name:name, date:date, amount:amt });
-      setData(function(prev){ var copy=Object.assign({},prev); copy[ym]={items:arr}; return copy; });
-      setName(""); setValue(""); setType("gain");
-    }
+    // Filter Monat
+    const tradesMonth = useMemo(() => {
+      return state.trades
+        .filter(t => dayjs(t.dateStr, "YYYY-MM-DD").format("YYYY-MM") === month)
+        .sort((a,b) => dayjs(a.dateStr).valueOf() - dayjs(b.dateStr).valueOf());
+    }, [state.trades, month]);
 
-    function updateTrade(id, patch){ setItems(items().map(function(t){ return t.id===id ? Object.assign({},t,patch) : t; })); }
-    function delTrade(id){ setItems(items().filter(function(t){ return t.id!==id; })); }
-
-    // Sort + KPIs
-    var list = items().slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
-    var total = list.reduce(function(a,b){ return a + Number(b.amount||0); }, 0);
-
-    // Chart-Daten (pro Tag Nettosumme)
-    var daysInMonth = (function(){ var y=+month.slice(0,4), m=+month.slice(5,7); return new Date(y,m,0).getDate(); })();
-    var perDay = new Array(daysInMonth).fill(0);
-    list.forEach(function(t){
-      if (t.date && t.date.slice(0,7)===month){
-        var d = +t.date.slice(8,10);
-        if (d>=1 && d<=daysInMonth) perDay[d-1] += Number(t.amount||0);
+    // Kumulativer P&L je Tag
+    const series = useMemo(() => {
+      const perDay = Array(monthDays).fill(0);
+      for (const t of tradesMonth) {
+        const d = dayjs(t.dateStr, "YYYY-MM-DD", true);
+        if (!d.isValid()) continue;
+        const idx = d.date() - 1;
+        perDay[idx] += Number(t.pnl || 0);
       }
-    });
-    var days = Array.from({length:daysInMonth}, (_,i)=> String(i+1));
-    var gains = perDay.map(function(v){ return v>0 ? v : null; });
-    var losses = perDay.map(function(v){ return v<0 ? v : null; });
+      const cum = [];
+      let acc = 0;
+      for (let i=0;i<monthDays;i++){ acc += perDay[i]; cum.push(acc); }
+      return { perDay, cum };
+    }, [tradesMonth, monthDays]);
 
-    // Chart render (responsive)
-    var chartRef = React.useRef(null);
-    var chartObj = React.useRef(null);
-    useEffect(function(){
-      var ctx = chartRef.current;
-      if (!ctx || !window.Chart) return;
-      if (chartObj.current) chartObj.current.destroy();
-      chartObj.current = new Chart(ctx, {
+    // Chart
+    const ref = useRef(null), chartRef = useRef(null);
+    useEffect(() => {
+      if (!ref.current) return;
+      chartRef.current?.destroy();
+      chartRef.current = new Chart(ref.current, {
         type: "line",
         data: {
-          labels: days,
+          labels: Array.from({length: monthDays}, (_,i)=> String(i+1)),
           datasets: [
-            { label:"Gewinn", data: gains, spanGaps:true, borderColor:GREEN, backgroundColor:GREEN, pointRadius:2.5, tension:.25 },
-            { label:"Verlust", data: losses, spanGaps:true, borderColor:RED, backgroundColor:RED, pointRadius:2.5, tension:.25 }
+            { label: "Kumulativ", data: series.cum, tension: .25, borderWidth: 2, pointRadius: 0 },
+            { label: "Tagessumme", data: series.perDay, tension: .25, borderWidth: 1, pointRadius: 0 }
           ]
         },
         options: {
-          responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ position:"bottom", labels:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e5e7eb' } } },
-          scales:{
-            x:{ ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#cbd5e1' },
-                grid:{ color:"rgba(148,163,184,.15)"} },
-            y:{ ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#cbd5e1',
-                        callback:function(v){ return fmtEUR(v); } },
-                grid:{ color:"rgba(148,163,184,.15)" } }
+          plugins: { legend: { labels: { color: getComputedStyle(document.body).getPropertyValue("--text").trim() } } },
+          scales: {
+            x: { grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--chart-grid").trim() } },
+            y: { grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--chart-grid").trim() } }
           }
         }
       });
-      return function(){ if(chartObj.current) chartObj.current.destroy(); };
-    }, [month, list.length, total, document.documentElement.getAttribute("data-theme")]);
+      return () => chartRef.current?.destroy();
+    }, [series, monthDays]);
 
     // UI
-    return h("div",{className:"w-container"},
-      // Kopf
-      h("div",{className:"w-card"},
-        h("div",{className:"w-row"},
-          h("div",null,
-            h("label",{className:"w-subtle"},"Monat"),
-            h("input",{type:"month", value:month, onChange:function(e){ var v=e.target.value; setMonth(v); ensureMonth(v); }, className:"w-input", style:{minWidth:"180px"}})
+    return e("div", { className:"w-container" },
+      e("div", { className:"w-card" },
+        e("div", { className:"w-row" },
+          e("div", null,
+            e("label", { className:"w-subtle" }, "Monat"),
+            e("input", { type:"month", className:"w-input", value:month, onChange:ev=>setMonth(ev.target.value) })
           ),
-          h("div",{className:"w-spacer"}),
-          h("div",{className:"w-pill"},"Netto: "+fmtEUR(total)),
-          h("div",{className:"w-pill"},"Trades: "+list.length)
-        )
-      ),
-
-      // Formular – mobil stapelbar
-      h("div",{className:"w-card"},
-        h("h3",null,"Trade hinzufügen"),
-        h("div",{className:"w-grid-2", style:{marginBottom:"10px"}},
-          h("input",{className:"w-input", placeholder:"Name (z. B. Aktie/ETF)", value:name, onChange:function(e){setName(e.target.value);}}),
-          h("div",{className:"w-row", style:{gap:"8px"}},
-            h("input",{className:"w-input", type:"date", value:date, onChange:function(e){setDate(e.target.value);}, style:{minWidth:"130px"}}),
-            h("select",{className:"w-select", value:type, onChange:function(e){setType(e.target.value);}, style:{minWidth:"120px"}},
-              h("option",{value:"gain"},"Gewinn"),
-              h("option",{value:"loss"},"Verlust")
-            ),
-            h("input",{className:"w-input", type:"number", step:"0.01", placeholder:"Betrag (€)", value:value, onChange:function(e){setValue(e.target.value);}, style:{minWidth:"120px"}}),
-            h("button",{className:"w-button w-btn-primary", onClick:addTrade, style:{whiteSpace:"nowrap"}}, "Hinzufügen")
+          e("div", { className:"w-spacer" }),
+          e("div", { className:"t-legend" },
+            e("span", { className:"dot green" }), "Gewinn ",
+            e("span", { className:"dot red", style:{marginLeft:8} }), "Verlust"
           )
-        ),
-        h("div",{className:"t-legend"},
-          h("div",{className:"dot green"}), h("span",{className:"w-subtle"},"Gewinn"),
-          h("div",{className:"dot red"}), h("span",{className:"w-subtle"},"Verlust")
         )
       ),
 
-      // Chart
-      h("div",{className:"w-card t-chart", style:{height:"240px"}},
-        h("h3",null,"Gewinn/Verlust pro Tag"),
-        h("div",{style:{position:"relative", height:"180px"}},
-          h("canvas",{ref:chartRef})
+      e("div", { className:"w-card" },
+        e("h3", null, "Neuer Trade"),
+        e("div", { className:"w-row", style:{gap:8, flexWrap:"wrap"} },
+          e("input", { className:"w-input", placeholder:"Name / Ticker", value:name, onChange:ev=>setName(ev.target.value) }),
+          e("input", { className:"w-input", type:"date", value:dateStr, onChange:ev=>setDateStr(ev.target.value) }),
+          e("input", { className:"w-input", type:"number", step:"0.01", placeholder:"P&L (€ +/–)", value:amount, onChange:ev=>setAmount(ev.target.value) }),
+          e("button", { className:"w-button w-btn-primary", onClick:addTrade }, "+ Hinzufügen")
         )
       ),
 
-      // Tabelle
-      h("div",{className:"w-card"},
-        h("h3",null,"Trades"),
-        h("div",{style:{overflowX:"auto"}},
-          h("table",{className:"w-table"},
-            h("thead",null,
-              h("tr",null,
-                h("th",null,"Name"),
-                h("th",null,"Datum"),
-                h("th",null,"Typ"),
-                h("th",{className:"w-num"},"Betrag (€)"),
-                h("th",null,"Aktion")
-              )
-            ),
-            h("tbody",null,
-              list.map(function(t){
-                var isGain = (t.amount||0) >= 0;
-                return h("tr",{key:t.id},
-                  h("td",null,
-                    h("input",{className:"w-input", value:t.name||"", onChange:function(e){ updateTrade(t.id,{name:e.target.value}); }})
-                  ),
-                  h("td",null,
-                    h("input",{className:"w-input", type:"date", value:t.date||"", onChange:function(e){ updateTrade(t.id,{date:e.target.value}); }})
-                  ),
-                  h("td",null,
-                    h("select",{className:"w-select", value:isGain?"gain":"loss", onChange:function(e){
-                      var typ=e.target.value;
-                      var amt = Math.abs(Number(t.amount||0));
-                      updateTrade(t.id,{ amount: typ==="gain" ? amt : -amt });
-                    }} ,
-                      h("option",{value:"gain"},"Gewinn"),
-                      h("option",{value:"loss"},"Verlust")
-                    ),
-                    " ",
-                    h("span",{className:"t-badge "+(isGain?"gain":"loss")}, isGain? "Gewinn" : "Verlust")
-                  ),
-                  h("td",{className:"w-num"},
-                    h("input",{className:"w-input", type:"number", step:"0.01", value:Math.abs(Number(t.amount||0)), onChange:function(e){
-                      var v = Math.abs(Number(e.target.value||0));
-                      var sign = ( (t.amount||0) >= 0 ) ? 1 : -1;
-                      updateTrade(t.id,{ amount: sign*v });
-                    }})
-                  ),
-                  h("td",null,
-                    h("button",{className:"w-button w-btn-danger", onClick:function(){ delTrade(t.id); }},"Löschen")
-                  )
-                );
-              })
+      e("div", { className:"w-card" },
+        e("h3", null, "Verlauf"),
+        e("div", null, e("canvas", { className:"t-chart", ref:ref }))
+      ),
+
+      e("div", { className:"w-card" },
+        e("h3", null, "Trades (dieser Monat)"),
+        e("div", { style:{overflowX:"auto"} },
+          e("table", { className:"w-table" },
+            e("thead", null, e("tr", null,
+              e("th", null, "Datum"),
+              e("th", null, "Name"),
+              e("th", { className:"w-num" }, "P&L (€)"),
+              e("th", null, "Aktion")
+            )),
+            e("tbody", null,
+              tradesMonth.map(t => e("tr", { key:t.id },
+                e("td", null,
+                  e("input", { className:"w-input", type:"date", value:t.dateStr,
+                    onChange:ev=>updateTrade(t.id,{ dateStr: ev.target.value })
+                  })
+                ),
+                e("td", null,
+                  e("input", { className:"w-input", value:t.name||"", onChange:ev=>updateTrade(t.id,{ name: ev.target.value }) })
+                ),
+                e("td", { className:"w-num" },
+                  e("input", { className:"w-input", type:"number", step:"0.01", value:t.pnl,
+                    style:{ color: Number(t.pnl)>=0 ? "var(--green)" : "var(--red)" },
+                    onChange:ev=>updateTrade(t.id,{ pnl: Number(ev.target.value||0) })
+                  })
+                ),
+                e("td", null, e("button", { className:"w-button w-btn-danger", onClick:()=>delTrade(t.id) }, "Löschen"))
+              ))
             )
           )
         )
@@ -201,11 +155,10 @@
     );
   }
 
-  // Mount
   document.addEventListener("DOMContentLoaded", function(){
-    var mount = document.getElementById("trades-app");
-    if(!mount) return;
-    var root = ReactDOM.createRoot ? ReactDOM.createRoot(mount) : null;
-    if(root){ root.render(h(App)); } else { ReactDOM.render(h(App), mount); }
+    const mount = document.getElementById("trades-app");
+    if (!mount) return;
+    const root = ReactDOM.createRoot ? ReactDOM.createRoot(mount) : null;
+    if (root) root.render(React.createElement(App)); else ReactDOM.render(React.createElement(App), mount);
   });
 })();
