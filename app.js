@@ -383,17 +383,23 @@ function updateExpense(id, patch) {
               dayjs(b.dateStr, "YYYY-MM-DD").valueOf() - dayjs(a.dateStr, "YYYY-MM-DD").valueOf()
             )
             .map(exp => e("tr", { key: exp.id },
+
               // Datum
               e("td", null, dayjs(exp.dateStr, "YYYY-MM-DD").format("DD.MM.YYYY")),
 
-              // Name – editierbar
+              // Name – direkt editierbar (kein updateExpense nötig)
               e("td", null,
                 e("input", {
                   className: "input table-text",
                   type: "text",
                   placeholder: "Name / Händler",
                   value: exp.name || "",
-                  onChange: ev => updateExpense(exp.id, { name: ev.target.value })
+                  onChange: ev => setState(s => ({
+                    ...s,
+                    expenses: s.expenses.map(x =>
+                      x.id === exp.id ? { ...x, name: ev.target.value } : x
+                    )
+                  }))
                 })
               ),
 
@@ -402,7 +408,12 @@ function updateExpense(id, patch) {
                 e("select", {
                   className: "input table-select",
                   value: exp.category || "Lebensmittel",
-                  onChange: ev => updateExpense(exp.id, { category: ev.target.value })
+                  onChange: ev => setState(s => ({
+                    ...s,
+                    expenses: s.expenses.map(x =>
+                      x.id === exp.id ? { ...x, category: ev.target.value } : x
+                    )
+                  }))
                 }, CATEGORIES.map(c => e("option", { key: c, value: c }, c)))
               ),
 
