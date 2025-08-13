@@ -140,6 +140,14 @@
     function deleteExpense(id) { setState(s => ({ ...s, expenses: s.expenses.filter(x => x.id !== id) })); }
     function newMonth() { if (confirm("Alle Ausgaben löschen (neuer Monat)?")) setState(s => ({ ...s, expenses: [], overrideSpentToDate: "", lastSeenMonthKey: monthKey })); }
     function resetAll() { if (confirm("Alles auf Standard zurücksetzen?")) setState({ monthlyBudget: 350, useOverride: false, overrideSpentToDate: "", expenses: [], lastSeenMonthKey: monthKey }); }
+    
+    // ---- Kategorie eines bestehenden Eintrags updaten ----
+function updateExpense(id, patch) {
+  setState(s => ({
+    ...s,
+    expenses: s.expenses.map(x => x.id === id ? { ...x, ...patch } : x)
+  }));
+}
 
     // ---------- OCR ----------
     const [file, setFile] = useState(null);
